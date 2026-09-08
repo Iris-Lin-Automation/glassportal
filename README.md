@@ -10,6 +10,8 @@ Turn any Notion page into a polished, password-protected, dark-glassmorphism cli
 ![Notion API](https://img.shields.io/badge/Notion%20API-integrated-000000?logo=notion&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel&logoColor=white)
 
+🔗 **Live project:** https://glassportal.vercel.app
+
 ---
 
 ## Overview
@@ -18,6 +20,7 @@ GlassPortal is a full-stack SaaS-style application that sits on top of the Notio
 
 ### Live demo
 
+- **Online project** — https://glassportal.vercel.app
 - **Sample portal** — `/p/demo` (no Notion connection required)
 - **Builder / Studio** — `/`
 
