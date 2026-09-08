@@ -1,0 +1,49 @@
+# GlassPortal (NotionB2B) AI Development Rules
+
+## 1. Code & Feature Preservation (核心：严禁乱删代码 / 严禁偷偷回退已修好的功能)
+- NEVER remove, simplify, or rewrite existing working functions, UI elements, or API logic unless explicitly instructed.
+- NEVER use placeholders like `// ... rest of code` or `// TODO`. Always provide 100% full code when editing files.
+- When fixing or adding a feature, modify ONLY the target lines and preserve all surrounding state, styling, and event handlers.
+- CRITICAL: When improving one area (themes, header, layout, overflow, styling), do NOT silently strip, “clean up”, or regress previously shipped UX — especially table horizontal scroll, reading progress pin, logoUrl, favicon, image proxy, and Notion title.
+- If a parent wrapper needs `overflow-hidden` / `max-w-*`, keep nested scroll regions intact (e.g. tables keep their own `overflow-x-auto` slider).
+
+## 2. UI & Styling Rules (高奢 Executive 风格规范)
+- Maintain the "Executive Light Mode" theme (Stripe / McKinsey minimalist aesthetic).
+- Use Tailwind CSS for all styling. Ensure high contrast, crisp line heights, subtle borders (`border-slate-200/80`), and executive rounded corners (`rounded-xl` or `rounded-2xl`).
+- Ensure all rendered Notion components (Tables, Callouts, Headings, Lists) have clean typography and proper bottom padding (`pb-24`) so content is never cutoff.
+- Block Renderer defaults: body `text-[15px] leading-relaxed text-slate-800`; H1 `text-2xl font-bold tracking-tight`; H2/H3 `text-lg font-semibold mt-8 mb-3`; container breathing room `max-w-3xl px-8 py-10`.
+- Callouts: pale `bg-slate-50` + `border-l-4 border-l-slate-900` — no loud Notion colors, no decorative icon clutter.
+- KPI / stat cards: large bold figures (e.g. text-2xl font-bold) for core metrics.
+- Tables: hairline `border-slate-200/80`, header `bg-slate-50/80`, cells `px-4 py-3`, keep horizontal bottom scrollbar (see §7).
+
+## 3. Tech Stack & Integration Guardrails
+- Framework: Next.js (App Router), TypeScript, Tailwind CSS.
+- Notion Integration: Always ensure Notion block rendering maps correctly to executive styles.
+- Security: Never expose internal Notion Integration Tokens to client-facing frontend props or URLs. Only pass generated session/access tokens.
+
+## 4. Brand Favicon Lock (核心：浏览器标签图标)
+- The browser tab favicon MUST always display the uploaded client brand logo (not a default GlassPortal / Vercel / Next.js icon).
+- NEVER remove, bypass, or “simplify away” `BrandFavicon`, `PortalBrandFavicon`, or `/api/branding/[id]/logo`.
+- NEVER replace brand favicon logic with a static `app/icon` or default favicon when a client logo exists.
+- When editing Portal Studio, PortalShell, layout, or metadata: preserve brand favicon wiring on both `/` (Studio) and `/p/[id]` (client portal).
+
+## 5. PortalHeader Dynamic Logo Contract (核心：Header Logo 不可回退丢弃)
+- `PortalHeader` MUST always accept a dynamic `logoUrl?: string` prop (in addition to `data`).
+- Logo resolution order is fixed: `logoUrl` prop → `data.icon` (if renderable URL) → icon-component fallback only.
+- NEVER hardcode a static default image path in `PortalHeader` JSX.
+- NEVER remove the `logoUrl` prop when rearranging UI or restyling the header.
+- Any future UI refactor of the header MUST keep this prop structure so uploaded brand logos never silently revert.
+- `PortalHeader` MUST render the Notion page title from `data.title` as the visible hero H1. Do not hide the Notion title or replace it with VIP Share `cardTitle` on the portal body (cardTitle is for share/OG only).
+
+## 6. Reading Progress Bar Lock (核心：阅读进度条必须始终置顶固定)
+- The reading progress bar (`ReadingProgress`) MUST remain visibly pinned while the user scrolls — it must never scroll away with the document.
+- Public portal (`/p/[id]`): keep `position: fixed` to the browser viewport (portal to `document.body`, high z-index).
+- Studio Live Preview: keep the bar pinned to the top of the preview scroll pane (fixed-to-pane / sticky-equivalent), even when parent wrappers use `overflow`.
+- NEVER demote the bar to a normal in-flow block, remove `ReadingProgress`, or “simplify” pinning away during UI refactors.
+- When editing `PortalShell`, preview layout, or overflow/scroll containers: re-verify the progress bar stays fixed at the top during scroll.
+
+## 7. Notion Table Horizontal Scroll Lock (核心：表格底部横向滑块不可删除)
+- Wide Notion tables MUST keep a visible bottom horizontal scrollbar / slider (`overflow-x-auto` + `.portal-table-scroll`).
+- Table markup must allow overflow: use `w-max min-w-full` (NOT `w-full max-w-full` that forces shrink-to-fit and hides the slider).
+- NEVER remove the table scroll container, force `overflow-hidden` on the table scroller, or add parent rules like `[&_table]:max-w-full` that kill horizontal scrolling.
+- When changing layout, themes, or `overflow-x-hidden` on page shells: re-check that Data tables still show and work with the bottom slider.

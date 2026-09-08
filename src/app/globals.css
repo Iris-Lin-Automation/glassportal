@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f9fafb;
+  --foreground: #0f172a;
+  --glass: #ffffff;
+  --glass-strong: #ffffff;
+  --glass-border: #e2e8f0;
+  --muted: #334155;
+  --accent-indigo: #4f46e5;
+  --accent-blue: #2563eb;
+  --accent-amber: #d97706;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  background-image: none;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .glass-surface,
+  .mech-panel {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .glass-surface-soft {
+    @apply rounded-xl border border-slate-200 bg-slate-50 shadow-sm;
+  }
+
+  .glass-surface-strong {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .text-gradient-sf {
+    @apply text-slate-900;
+  }
+
+  .portal-transition {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .mech-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500;
+  }
+
+  .mech-input {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none portal-transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/5;
+  }
+
+  .corner-brackets {
+    position: relative;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Always-visible horizontal slider for wide Notion tables — do not remove */
+  .portal-table-scroll {
+    overflow-x: scroll; /* keep the bottom slider visible (not overlay-auto only) */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: #64748b #e2e8f0;
+  }
+
+  .portal-table-scroll::-webkit-scrollbar {
+    height: 12px;
+    display: block;
+  }
+
+  .portal-table-scroll::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 9999px;
+    margin: 0 8px 4px;
+  }
+
+  .portal-table-scroll::-webkit-scrollbar-thumb {
+    background: #64748b;
+    border-radius: 9999px;
+    border: 2px solid #e2e8f0;
+  }
+
+  .portal-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
