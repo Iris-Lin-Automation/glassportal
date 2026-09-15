@@ -62,9 +62,22 @@ export function ExportToolbar({
   useEffect(() => {
     setMounted(true);
     try {
-      setCollapsed(sessionStorage.getItem(COLLAPSE_KEY) === "1");
+      const stored = sessionStorage.getItem(COLLAPSE_KEY);
+      if (stored === "1") {
+        setCollapsed(true);
+      } else if (stored === "0") {
+        setCollapsed(false);
+      } else if (window.matchMedia("(max-width: 639px)").matches) {
+        // Phone: start collapsed so the reading surface stays clear
+        setCollapsed(true);
+      }
     } catch {
-      /* ignore */
+      if (
+        typeof window !== "undefined" &&
+        window.matchMedia("(max-width: 639px)").matches
+      ) {
+        setCollapsed(true);
+      }
     }
   }, []);
 
@@ -148,13 +161,15 @@ export function ExportToolbar({
   return createPortal(
     <div
       className={cn(
-        "fixed bottom-6 right-4 z-[210] flex flex-col items-end gap-2 sm:bottom-8 sm:right-6",
+        "fixed z-[210] flex flex-col items-end gap-2",
+        "bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right,0px))]",
+        "sm:bottom-[max(2rem,env(safe-area-inset-bottom,0px))] sm:right-6",
         className
       )}
       data-export-ignore="1"
     >
       {toast ? (
-        <p className="max-w-[260px] rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm backdrop-blur">
+        <p className="max-w-[min(260px,calc(100vw-2rem))] rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm backdrop-blur">
           {toast}
         </p>
       ) : null}
@@ -163,7 +178,7 @@ export function ExportToolbar({
         <button
           type="button"
           onClick={() => setCollapsedPersist(false)}
-          className="group flex h-12 w-12 items-center justify-center rounded-full border bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)] transition hover:scale-[1.03]"
+          className="group flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)] transition hover:scale-[1.03] sm:h-12 sm:w-12"
           style={{ borderColor: `${brandColor}40` }}
           aria-label="Show actions"
           title="Show actions"
@@ -175,7 +190,7 @@ export function ExportToolbar({
         </button>
       ) : (
         <div
-          className="w-[220px] overflow-hidden rounded-2xl border bg-white/95 shadow-[0_12px_40px_rgba(15,23,42,0.12)] backdrop-blur-md"
+          className="w-[min(220px,calc(100vw-2rem))] overflow-hidden rounded-2xl border bg-white/95 shadow-[0_12px_40px_rgba(15,23,42,0.12)] backdrop-blur-md"
           style={{ borderColor: `${brandColor}28` }}
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">

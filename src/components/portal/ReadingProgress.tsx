@@ -76,7 +76,7 @@ function Bar({
           }}
         />
       </div>
-      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-2.5">
+      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           {showLogo ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -178,11 +178,12 @@ export function ReadingProgress({
 
   const shell = `border-b shadow-sm backdrop-blur-md ${barClassName}`;
 
-  // Invisible anchor keeps us in the portal tree so we can find the scroll parent
+  // Invisible anchor keeps us in the portal tree so we can find the scroll parent.
+  // Include safe-area so content is not tucked under the notch + pinned bar.
   const anchor = (
     <div
       ref={anchorRef}
-      className="h-11 shrink-0"
+      className="h-[calc(2.75rem+env(safe-area-inset-top,0px))] shrink-0"
       aria-hidden
       data-reading-progress-anchor="1"
     />
@@ -222,7 +223,7 @@ export function ReadingProgress({
               brandColor={brandColor}
               logoUrl={logoUrl}
               mutedTextClassName={mutedTextClassName}
-              className={`fixed inset-x-0 top-0 z-[190] ${shell}`}
+              className={`fixed inset-x-0 top-0 z-[190] pt-[env(safe-area-inset-top,0px)] ${shell}`}
             />,
             document.body
           )

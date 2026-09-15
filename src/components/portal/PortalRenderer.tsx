@@ -108,6 +108,11 @@ function NotionTable({
     <div
       className={`my-8 w-full max-w-full overflow-hidden rounded-xl border ${preset.tableWrap}`}
     >
+      <p
+        className={`border-b border-slate-100 px-3 py-1.5 text-[11px] font-medium sm:hidden ${preset.mutedText}`}
+      >
+        Swipe sideways to view full table
+      </p>
       {/* Horizontal scroll MUST stay — wide Notion tables need a bottom scrollbar */}
       <div className="portal-table-scroll w-full max-w-full overscroll-x-contain pb-1">
         <table
@@ -353,7 +358,7 @@ export function PortalRenderer({
   return (
     <div
       id="portal-export-root"
-      className={`mx-auto w-full max-w-3xl px-8 py-10 pb-24 ${preset.pageText}`}
+      className={`mx-auto w-full max-w-3xl px-4 py-6 pb-28 sm:px-6 sm:py-10 sm:pb-24 md:px-8 ${preset.pageText}`}
     >
       <PortalHeader
         data={data}
