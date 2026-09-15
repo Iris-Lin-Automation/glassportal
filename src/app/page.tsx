@@ -13,6 +13,10 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
+import {
+  StudioMobileWizard,
+  type StudioMobileStep,
+} from "@/components/studio/StudioMobileWizard";
 import type { PortalData, PortalTheme } from "@/lib/types";
 import {
   compressLogoDataUrl,
@@ -88,6 +92,7 @@ export default function BuilderPage() {
   const pendingAction = useRef<null | (() => void)>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [planId, setPlanId] = useState<PlanId>("starter");
+  const [mobileStep, setMobileStep] = useState<StudioMobileStep>(0);
 
   const [clientName, setClientName] = useState("Acme Corporation");
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
@@ -205,6 +210,8 @@ export default function BuilderPage() {
   const syncActive = Boolean(token.trim() && data && !isSamplePortal(data));
   const isGuest = !sessionEmail;
   const usingSample = isSamplePortal(data);
+  /** Mobile wizard: allow leaving Connect once Sample is up or Notion is linked */
+  const canAdvanceFromConnect = usingSample || syncActive;
 
   const loadSampleReport = () => {
     setError("");
@@ -513,60 +520,567 @@ export default function BuilderPage() {
     window.setTimeout(() => setSavedFlash(false), 2000);
   };
 
+  const onThemeChange = (raw: string) => {
+    const next = normalizeThemeId(raw);
+    const nextColor = themeBrandColor(next);
+    setTheme(next);
+    setBrandColor(nextColor);
+    localStorage.setItem(THEME_KEY, next);
+    if (data?.id) {
+      void persistBranding(data.id, {
+        brandColor: nextColor,
+        theme: next,
+      });
+    }
+  };
+
+  const studioHeader = (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+          <LayoutDashboard className="h-5 w-5 text-slate-900" />
+        </span>
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">
+            GlassPortal
+          </p>
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900">
+            Portal Studio
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Notion → polished share page
+          </p>
+        </div>
+      </div>
+      {isGuest ? (
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+            Free preview
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthIntent("save");
+              setAuthOpen(true);
+            }}
+            className="text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline"
+          >
+            Sign in
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            clearConsultantSession();
+            setSessionEmail(null);
+          }}
+          className="max-w-[140px] truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900"
+          title={sessionEmail || undefined}
+        >
+          {sessionEmail} · Sign out
+        </button>
+      )}
+    </div>
+  );
+
+  const syncBadge = (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+        syncActive && liveSync
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : usingSample
+            ? "border-sky-200 bg-sky-50 text-sky-700"
+            : "border-slate-200 bg-slate-50 text-slate-500"
+      }`}
+    >
+      {syncActive && liveSync
+        ? "Auto-Sync Active"
+        : usingSample
+          ? "Sample Demo"
+          : loading
+            ? "Syncing…"
+            : "Waiting to Connect"}
+    </span>
+  );
+
+  const shareLinkButtons =
+    privatePath || portalPath ? (
+      <div className="space-y-2">
+        {privatePath ? (
+          <button
+            type="button"
+            onClick={() =>
+              requireAuth("private-link", () => {
+                void generatePrivateTokenLink();
+              })
+            }
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100"
+          >
+            <span className="truncate">
+              <span className="font-semibold text-slate-900">
+                Private client link
+              </span>
+              <br />
+              Opens the report without a passcode
+            </span>
+            <Copy className="h-3.5 w-3.5 shrink-0" />
+          </button>
+        ) : null}
+        {passcodeEnabled && portalPath ? (
+          <button
+            type="button"
+            onClick={() => copyText(portalPath, "passcode")}
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+          >
+            <span className="truncate">
+              <span className="font-semibold text-slate-900">Passcode link</span>
+              <br />
+              Client types passcode at the gate
+            </span>
+            <Copy className="h-3.5 w-3.5 shrink-0" />
+          </button>
+        ) : null}
+        {copied ? (
+          <p className="text-[11px] font-medium text-emerald-700">
+            {copied === "private"
+              ? "Private token link copied"
+              : "Passcode link copied"}
+          </p>
+        ) : null}
+        <a
+          href={
+            passcodeEnabled && portalPath
+              ? portalPath
+              : privatePath || portalPath
+          }
+          target="_blank"
+          rel="noreferrer"
+          className="block text-center text-[11px] font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
+        >
+          {passcodeEnabled
+            ? "Open secured client preview"
+            : "Open live portal"}
+        </a>
+      </div>
+    ) : null;
+
+  const logoFileInput = (
+    <input
+      ref={logoInputRef}
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+      tabIndex={-1}
+      aria-hidden="true"
+      className="pointer-events-none absolute h-0 w-0 opacity-0"
+      style={{
+        position: "absolute",
+        width: 1,
+        height: 1,
+        padding: 0,
+        margin: -1,
+        overflow: "hidden",
+        clip: "rect(0, 0, 0, 0)",
+        whiteSpace: "nowrap",
+        border: 0,
+      }}
+      onChange={(e) => {
+        onLogoUpload(e.target.files?.[0]);
+        e.target.value = "";
+      }}
+    />
+  );
+
+  const mobileConnectStep = (
+    <GlassCard hover={false} className="space-y-4 p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-slate-700" />
+          <h2 className="text-sm font-semibold text-slate-900">
+            Connect Notion
+          </h2>
+        </div>
+        {syncBadge}
+      </div>
+      <p className="text-[12px] leading-relaxed text-slate-500">
+        Paste your integration token and page link. One screen — then brand and
+        share.
+      </p>
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-slate-600">
+          Integration Token
+        </span>
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="ntn_... / secret_..."
+          className="mech-input"
+          autoComplete="off"
+        />
+      </label>
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-slate-600">
+          Notion Page URL / ID
+        </span>
+        <input
+          type="text"
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value)}
+          placeholder="https://www.notion.so/..."
+          className="mech-input"
+        />
+      </label>
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            void (async () => {
+              const portal = await fetchPortal();
+              if (portal) setMobileStep(1);
+            })();
+          }}
+          disabled={loading || !token.trim() || !pageInput.trim()}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-900 bg-slate-900 px-3 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Connect Notion page
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            loadSampleReport();
+            setMobileStep(1);
+          }}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+        >
+          Try Sample Report
+        </button>
+      </div>
+      <p className="text-[10px] leading-relaxed text-slate-400">
+        Share the Notion page with your integration first, then Connect. Or try
+        Sample to preview the flow.
+      </p>
+      {usingSample ? (
+        <button
+          type="button"
+          onClick={openClientDemo}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs font-semibold text-sky-900 transition hover:bg-sky-100"
+        >
+          Open as client (demo passcode gate)
+        </button>
+      ) : null}
+      {lastSyncedAt ? (
+        <p className="text-[10px] text-slate-400">Last synced {lastSyncedAt}</p>
+      ) : null}
+      {error ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </p>
+      ) : null}
+    </GlassCard>
+  );
+
+  const mobileBrandStep = (
+    <div className="space-y-4">
+      <GlassCard hover={false} className="space-y-3 p-5">
+        <div className="flex items-center gap-2">
+          <ImagePlus className="h-4 w-4 text-slate-700" />
+          <h2 className="text-sm font-semibold text-slate-900">
+            Client Branding
+          </h2>
+        </div>
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-slate-600">Client Name</span>
+          <input
+            type="text"
+            value={clientName}
+            onChange={(e) => {
+              const v = e.target.value;
+              setClientName(v);
+              setShareConfig((prev) => ({
+                ...prev,
+                cardTitle: prev.cardTitle.includes("Acme")
+                  ? `${v || "Client"} 2026 Strategic Advisory Report`
+                  : prev.cardTitle,
+              }));
+            }}
+            placeholder="Acme Corporation"
+            className="mech-input"
+          />
+        </label>
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-slate-600">Client Logo</span>
+          <button
+            type="button"
+            onClick={() => logoInputRef.current?.click()}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <Upload className="h-4 w-4 shrink-0" aria-hidden />
+            Upload Logo
+          </button>
+          <p className="text-[10px] leading-relaxed text-slate-400">
+            PNG, JPG, or SVG · Header, favicon, and share cards
+          </p>
+          {logoDataUrl ? (
+            <div className="mt-2 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoDataUrl}
+                alt="Client logo preview"
+                className="h-10 max-w-[160px] object-contain"
+              />
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-600"
+                title="Accent color from logo"
+              >
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: brandColor }}
+                />
+                {brandColor}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      </GlassCard>
+      <GlassCard hover={false} className="space-y-3 p-5">
+        <h2 className="text-sm font-semibold text-slate-900">Executive Theme</h2>
+        <select
+          value={theme}
+          onChange={(e) => onThemeChange(e.target.value)}
+          className="mech-input"
+        >
+          {THEME_PRESETS.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <span className="flex items-center gap-2 text-[10px] text-slate-400">
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-full border border-slate-200"
+            style={{ backgroundColor: brandColor }}
+          />
+          {getThemePreset(theme).description}
+        </span>
+      </GlassCard>
+    </div>
+  );
+
+  const mobileShareStep = (
+    <div className="space-y-4">
+      <GlassCard hover={false} className="space-y-3 p-5">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-slate-700" />
+          <h2 className="text-sm font-semibold text-slate-900">
+            Access & Publish
+          </h2>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          Clients never create an account. Share a passcode link or a private
+          link.
+        </p>
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-slate-600">
+            Simple Passcode
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={passcodeEnabled}
+            onClick={() => setPasscodeEnabled((v) => !v)}
+            className={`relative h-6 w-11 rounded-full transition ${
+              passcodeEnabled ? "bg-slate-900" : "bg-slate-200"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                passcodeEnabled ? "left-5" : "left-0.5"
+              }`}
+            />
+          </button>
+        </label>
+        {passcodeEnabled ? (
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-slate-600">
+              Access Passcode
+            </span>
+            <input
+              type="text"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="e.g. Acme2026"
+              className="mech-input"
+            />
+          </label>
+        ) : null}
+        <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+              <KeyRound className="h-3.5 w-3.5" />
+              Exclusive Access Token
+            </span>
+            <button
+              type="button"
+              onClick={() => setAccessToken(makeAccessToken())}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-slate-900"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Rotate
+            </button>
+          </div>
+          <code className="block truncate rounded-md bg-white px-2 py-1.5 text-[11px] text-slate-700 ring-1 ring-slate-200">
+            {accessToken || "Generating…"}
+          </code>
+        </div>
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-slate-600">Link Expiry</span>
+          <select
+            value={linkExpiry}
+            onChange={(e) => setLinkExpiry(e.target.value)}
+            className="mech-input"
+          >
+            <option value="1">Expires in 24 hours</option>
+            <option value="7">Expires in 7 days</option>
+            <option value="30">Expires in 30 days</option>
+            <option value="never">No expiry</option>
+          </select>
+        </label>
+        {usingSample ? (
+          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-900">
+            Sample Demo — Publish is locked. Connect a real Notion page to
+            publish a live link.
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={() =>
+            requireAuth("save", () => {
+              void saveAndPublish();
+            })
+          }
+          disabled={loading}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm portal-transition hover:bg-slate-800 disabled:opacity-60"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Publishing…
+            </>
+          ) : (
+            "Save & Publish Portal"
+          )}
+        </button>
+        {error ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </p>
+        ) : null}
+        {savedFlash ? (
+          <p className="text-[11px] font-medium text-emerald-700">
+            Portal published · share links ready below.
+          </p>
+        ) : null}
+        {shareLinkButtons}
+      </GlassCard>
+      <PlanBillingCard
+        email={sessionEmail}
+        pageId={data?.id || null}
+        onPlanChange={setPlanId}
+      />
+      <GlassCard hover={false} className="p-5">
+        <VipShareCard
+          config={shareConfig}
+          onChange={(next) =>
+            setShareConfig((prev) => ({ ...prev, ...next }))
+          }
+          clientName={clientName}
+          logoDataUrl={logoDataUrl}
+          coverUrl={
+            logoDataUrl
+              ? undefined
+              : data?.coverUrl ||
+                (usingSample ? SAMPLE_COVER_URL : undefined)
+          }
+          sharePath={privatePath || portalPath}
+        />
+      </GlassCard>
+    </div>
+  );
+
+  const mobilePreviewStep = (
+    <div
+      className={`overflow-hidden rounded-2xl border border-slate-200 shadow-sm ${themePreset.pageBg}`}
+    >
+      <div
+        className={`flex items-center justify-between border-b px-3 py-2 ${themePreset.previewChrome}`}
+      >
+        <span className="text-xs font-medium">Live preview</span>
+        <span className="text-[11px] opacity-80">
+          {data ? `${data.blocks.length} blocks` : "—"} · {themePreset.label}
+        </span>
+      </div>
+      {displayData ? (
+        <div
+          className={`max-h-[calc(100dvh-14rem)] overflow-x-auto overflow-y-auto ${themePreset.pageBg}`}
+        >
+          {usingSample ? (
+            <p className="sticky top-0 z-[5] border-b border-sky-100 bg-sky-50/95 px-3 py-2 text-center text-[11px] font-medium text-sky-800 backdrop-blur">
+              Sample report — connect Notion for your live page
+            </p>
+          ) : null}
+          <PortalShell
+            data={displayData}
+            token={usingSample ? undefined : token}
+            shareUrl={
+              usingSample
+                ? clientDemoPath
+                : privatePath || portalPath || undefined
+            }
+            pinProgress={false}
+            liveSync={liveSync && !usingSample && mobileStep === 3}
+            theme={theme}
+            whiteLabel={getPlan(planId).whiteLabel}
+            showWatermark={planShowsWatermark(planId)}
+            onLiveData={() =>
+              setLastSyncedAt(
+                new Date().toLocaleTimeString("en-US", { hour12: false })
+              )
+            }
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-[40vh] items-center justify-center p-6 text-center text-sm text-slate-500">
+          Connect Notion or load Sample to preview.
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <>
       {/* Studio tab icon = uploaded client logo whenever available */}
       <BrandFavicon href={logoDataUrl || undefined} />
-      <main className="relative min-h-screen bg-[#F9FAFB]">
+      {logoFileInput}
+
+      {/* —— Mobile: step wizard (Connect → Brand → Share → Preview) —— */}
+      <StudioMobileWizard
+        step={mobileStep}
+        onStepChange={setMobileStep}
+        canAdvanceFromConnect={canAdvanceFromConnect}
+        header={studioHeader}
+        connect={mobileConnectStep}
+        brand={mobileBrandStep}
+        share={mobileShareStep}
+        preview={mobilePreviewStep}
+      />
+
+      {/* —— Desktop: existing two-column Studio —— */}
+      <main className="relative hidden min-h-screen bg-[#F9FAFB] lg:block">
         <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[400px_1fr] lg:px-6 lg:py-8">
           <aside className="space-y-4 lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
-                  <LayoutDashboard className="h-5 w-5 text-slate-900" />
-                </span>
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">
-                    GlassPortal
-                  </p>
-                  <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900">
-                    Portal Studio
-                  </h1>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Executive client delivery
-                  </p>
-                </div>
-              </div>
-              {isGuest ? (
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                    Free preview
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthIntent("save");
-                      setAuthOpen(true);
-                    }}
-                    className="text-[11px] font-semibold text-slate-700 underline-offset-2 hover:underline"
-                  >
-                    Sign in
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearConsultantSession();
-                    setSessionEmail(null);
-                  }}
-                  className="max-w-[140px] truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-600 hover:text-slate-900"
-                  title={sessionEmail || undefined}
-                >
-                  {sessionEmail} · Sign out
-                </button>
-              )}
-            </div>
+            {studioHeader}
 
             {/* 1 — Notion Connection */}
             <GlassCard hover={false} className="space-y-3 p-5">
@@ -577,23 +1091,7 @@ export default function BuilderPage() {
                     Notion Connection
                   </h2>
                 </div>
-                <span
-                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-                    syncActive && liveSync
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : usingSample
-                        ? "border-sky-200 bg-sky-50 text-sky-700"
-                        : "border-slate-200 bg-slate-50 text-slate-500"
-                  }`}
-                >
-                  {syncActive && liveSync
-                    ? "Auto-Sync Active"
-                    : usingSample
-                      ? "Sample Demo"
-                      : loading
-                        ? "Syncing…"
-                        : "Waiting to Connect"}
-                </span>
+                {syncBadge}
               </div>
 
               <label className="block space-y-1.5">
@@ -665,19 +1163,7 @@ export default function BuilderPage() {
                 </span>
                 <select
                   value={theme}
-                  onChange={(e) => {
-                    const next = normalizeThemeId(e.target.value);
-                    const nextColor = themeBrandColor(next);
-                    setTheme(next);
-                    setBrandColor(nextColor);
-                    localStorage.setItem(THEME_KEY, next);
-                    if (data?.id) {
-                      void persistBranding(data.id, {
-                        brandColor: nextColor,
-                        theme: next,
-                      });
-                    }
-                  }}
+                  onChange={(e) => onThemeChange(e.target.value)}
                   className="mech-input"
                 >
                   {THEME_PRESETS.map((t) => (
@@ -695,14 +1181,14 @@ export default function BuilderPage() {
                 </span>
               </label>
 
-                {usingSample ? (
-                  <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-900">
-                    Still on Sample Demo — Publish is locked. Click{" "}
-                    <strong>Open as client</strong> to try the buyer view now, or
-                    Connect a real Notion page (Share → invite your integration)
-                    to publish a live link.
-                  </p>
-                ) : null}
+              {usingSample ? (
+                <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-sky-900">
+                  Still on Sample Demo — Publish is locked. Click{" "}
+                  <strong>Open as client</strong> to try the buyer view now, or
+                  Connect a real Notion page (Share → invite your integration)
+                  to publish a live link.
+                </p>
+              ) : null}
 
               <button
                 type="button"
@@ -741,67 +1227,7 @@ export default function BuilderPage() {
                 </p>
               ) : null}
 
-              {privatePath || portalPath ? (
-                <div className="space-y-2">
-                  {privatePath ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        requireAuth("private-link", () => {
-                          void generatePrivateTokenLink();
-                        })
-                      }
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100"
-                    >
-                      <span className="truncate">
-                        <span className="font-semibold text-slate-900">
-                          Private client link
-                        </span>
-                        <br />
-                        Opens the report without a passcode
-                      </span>
-                      <Copy className="h-3.5 w-3.5 shrink-0" />
-                    </button>
-                  ) : null}
-                  {passcodeEnabled && portalPath ? (
-                    <button
-                      type="button"
-                      onClick={() => copyText(portalPath, "passcode")}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
-                    >
-                      <span className="truncate">
-                        <span className="font-semibold text-slate-900">
-                          Passcode link
-                        </span>
-                        <br />
-                        Client types passcode at the gate
-                      </span>
-                      <Copy className="h-3.5 w-3.5 shrink-0" />
-                    </button>
-                  ) : null}
-                  {copied ? (
-                    <p className="text-[11px] font-medium text-emerald-700">
-                      {copied === "private"
-                        ? "Private token link copied"
-                        : "Passcode link copied"}
-                    </p>
-                  ) : null}
-                  <a
-                    href={
-                      passcodeEnabled && portalPath
-                        ? portalPath
-                        : privatePath || portalPath
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-center text-[11px] font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
-                  >
-                    {passcodeEnabled
-                      ? "Open secured client preview"
-                      : "Open live portal"}
-                  </a>
-                </div>
-              ) : null}
+              {shareLinkButtons}
             </GlassCard>
 
             <PlanBillingCard
@@ -843,29 +1269,6 @@ export default function BuilderPage() {
                 <span className="text-xs font-medium text-slate-600">
                   Client Logo
                 </span>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute h-0 w-0 opacity-0"
-                  style={{
-                    position: "absolute",
-                    width: 1,
-                    height: 1,
-                    padding: 0,
-                    margin: -1,
-                    overflow: "hidden",
-                    clip: "rect(0, 0, 0, 0)",
-                    whiteSpace: "nowrap",
-                    border: 0,
-                  }}
-                  onChange={(e) => {
-                    onLogoUpload(e.target.files?.[0]);
-                    e.target.value = "";
-                  }}
-                />
                 <button
                   type="button"
                   onClick={() => logoInputRef.current?.click()}

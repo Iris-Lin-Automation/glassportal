@@ -272,7 +272,9 @@ export default async function PortalPage({
     : null;
 
   return (
-    <div className={`min-h-screen pb-8 ${themePreset.pageBg} ${themePreset.pageText}`}>
+    <div
+      className={`min-h-screen pb-[max(2rem,env(safe-area-inset-bottom,0px))] ${themePreset.pageBg} ${themePreset.pageText}`}
+    >
       {/* Tab favicon = uploaded brand logo (outside gate so it always applies) */}
       <PortalBrandFavicon pageId={pageId} />
       {error || !portalData ? (
@@ -305,7 +307,7 @@ export default async function PortalPage({
           clientName={clientName}
           confidentialLabel={confidentialLabel}
         >
-          <div className="fixed right-4 top-14 z-[195]">
+          <div className="fixed right-4 top-[max(3.5rem,calc(env(safe-area-inset-top,0px)+2.75rem))] z-[195] hidden md:block">
             <Link
               href="/"
               className="rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm backdrop-blur hover:text-slate-900"
