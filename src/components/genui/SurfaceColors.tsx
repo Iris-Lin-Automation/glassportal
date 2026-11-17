@@ -53,7 +53,7 @@ export function SurfaceColors({
       <button
         type="button"
         onClick={onReset}
-        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
       >
         Reset
       </button>

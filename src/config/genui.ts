@@ -68,13 +68,15 @@ export const GENUI_PALETTE_DEFAULTS: Record<GenuiStyle, GenuiPalette> = {
 export const GENUI_VIEWPORTS = ["desktop", "tablet", "mobile"] as const;
 export type GenuiViewport = (typeof GENUI_VIEWPORTS)[number];
 
+/** Logical device artboard sizes used for responsive preview (not browser CSS breakpoints). */
 export const GENUI_VIEWPORT_SIZE: Record<
   GenuiViewport,
-  { width: number; label: string }
+  { width: number; height: number; label: string }
 > = {
-  desktop: { width: 1200, label: "Desktop" },
-  tablet: { width: 768, label: "Tablet" },
-  mobile: { width: 390, label: "Mobile" },
+  desktop: { width: 1280, height: 800, label: "Desktop" },
+  // Landscape tablet — matches how dashboards are usually previewed
+  tablet: { width: 1024, height: 768, label: "Tablet" },
+  mobile: { width: 390, height: 844, label: "Mobile" },
 };
 
 export function getGenuiModel() {

@@ -109,7 +109,8 @@ export default function GenerativeUiWorkspacePage() {
       }
       setNote(json.meta?.note || "");
       setTab("preview");
-      // Collapse controls so preview fills the screen
+      setViewport("desktop");
+      // Collapse controls so the generated theme fills the screen
       setPanelOpen(false);
       await refreshHistory();
     } catch (e) {
@@ -182,6 +183,7 @@ export default function GenerativeUiWorkspacePage() {
           GENUI_PALETTE_DEFAULTS["modern-saas"]
       );
       setTab("preview");
+      setViewport("desktop");
       setHistoryOpen(false);
       setPanelOpen(false);
     } catch (e) {
@@ -199,20 +201,48 @@ export default function GenerativeUiWorkspacePage() {
     return { ...schema, meta: { ...schema.meta, style } };
   }, [schema, style]);
 
+  const immersive =
+    !panelOpen && tab === "preview" && !!previewSchema && viewport === "desktop";
+
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0B0F17] text-slate-900">
-      {/* Slim chrome */}
-      <header className="flex h-9 shrink-0 items-center justify-between border-b border-white/10 bg-[#111827] px-2 text-slate-200">
+    <div
+      className={`relative flex h-[100dvh] flex-col overflow-hidden text-slate-900 ${
+        immersive ? "" : "bg-slate-50"
+      }`}
+      style={
+        immersive
+          ? { backgroundColor: palette.background }
+          : undefined
+      }
+    >
+      {/* Slim Studio chrome — when immersive, sits on the generated theme (not a black app shell) */}
+      <header
+        className={`z-40 flex h-10 shrink-0 items-center justify-between px-3 ${
+          immersive
+            ? "border-b border-white/10 bg-black/20 text-white backdrop-blur-md"
+            : "border-b border-slate-200/80 bg-white"
+        }`}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           <Link
             href="/"
-            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 hover:bg-white/5 hover:text-white"
+            className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] ${
+              immersive
+                ? "text-white/70 hover:bg-white/10 hover:text-white"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            }`}
           >
-            <ArrowLeft className="h-3 w-3" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             Studio
           </Link>
-          <span className="text-slate-600">/</span>
-          <span className="truncate text-[11px] font-medium text-slate-200">
+          <span className={immersive ? "text-white/30" : "text-slate-300"}>
+            /
+          </span>
+          <span
+            className={`truncate text-[12px] font-semibold ${
+              immersive ? "text-white" : "text-slate-800"
+            }`}
+          >
             Generative UI
           </span>
         </div>
@@ -221,7 +251,11 @@ export default function GenerativeUiWorkspacePage() {
           <button
             type="button"
             onClick={() => setPanelOpen((v) => !v)}
-            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-slate-300 hover:bg-white/5"
+            className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium ${
+              immersive
+                ? "text-white/80 hover:bg-white/10"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
             title={panelOpen ? "Hide prompt panel" : "Show prompt panel"}
           >
             {panelOpen ? (
@@ -234,7 +268,13 @@ export default function GenerativeUiWorkspacePage() {
             </span>
           </button>
 
-          <div className="mx-0.5 hidden gap-0.5 rounded-md border border-white/10 p-0.5 sm:flex">
+          <div
+            className={`mx-0.5 flex gap-0.5 rounded-md p-0.5 ${
+              immersive
+                ? "border border-white/15 bg-black/30"
+                : "border border-slate-200/90 bg-slate-50"
+            }`}
+          >
             {(
               [
                 ["desktop", Monitor],
@@ -248,8 +288,12 @@ export default function GenerativeUiWorkspacePage() {
                 onClick={() => setViewport(id)}
                 className={`rounded px-1.5 py-1 ${
                   viewport === id
-                    ? "bg-white text-slate-900"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    ? immersive
+                      ? "bg-white text-slate-900"
+                      : "bg-white text-slate-900 shadow-sm"
+                    : immersive
+                      ? "text-white/55 hover:text-white"
+                      : "text-slate-400 hover:text-slate-700"
                 }`}
                 title={id}
               >
@@ -262,31 +306,35 @@ export default function GenerativeUiWorkspacePage() {
             <button
               type="button"
               onClick={() => setHistoryOpen((v) => !v)}
-              className="relative flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-slate-300 hover:bg-white/5"
+              className={`relative flex h-7 w-7 items-center justify-center rounded-full border ${
+                immersive
+                  ? "border-white/15 text-white/80 hover:bg-white/10"
+                  : "border-slate-200 text-slate-500 hover:bg-slate-100"
+              }`}
               aria-label="History"
             >
               <History className="h-3.5 w-3.5" />
               {history.length > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-cyan-400 px-1 text-[8px] font-bold text-slate-900">
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-slate-900 px-1 text-[8px] font-bold text-white">
                   {Math.min(history.length, 9)}
                 </span>
               ) : null}
             </button>
             {historyOpen ? (
-              <div className="absolute right-0 top-9 z-50 w-[280px] overflow-hidden rounded-xl border border-white/10 bg-[#1A2233] text-slate-200 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+              <div className="absolute right-0 top-9 z-50 w-[280px] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
                   <p className="text-[11px] font-semibold">Recent runs</p>
                   <button
                     type="button"
                     onClick={() => setHistoryOpen(false)}
-                    className="rounded p-0.5 text-slate-400 hover:bg-white/5"
+                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 <div className="max-h-64 overflow-y-auto p-1">
                   {history.length === 0 ? (
-                    <p className="py-6 text-center text-[11px] text-slate-500">
+                    <p className="py-6 text-center text-[11px] text-slate-400">
                       No runs yet
                     </p>
                   ) : (
@@ -295,12 +343,12 @@ export default function GenerativeUiWorkspacePage() {
                         key={h.id}
                         type="button"
                         onClick={() => void loadRun(h.id)}
-                        className="mb-0.5 w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/5"
+                        className="mb-0.5 w-full rounded-lg px-2.5 py-2 text-left hover:bg-slate-50"
                       >
                         <span className="line-clamp-2 text-[11px] font-medium">
                           {h.prompt}
                         </span>
-                        <span className="mt-0.5 block text-[10px] text-slate-500">
+                        <span className="mt-0.5 block text-[10px] text-slate-400">
                           {GENUI_STYLE_LABELS[h.style]} · {h.model.mode}
                         </span>
                       </button>
@@ -314,38 +362,38 @@ export default function GenerativeUiWorkspacePage() {
       </header>
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {/* LEFT panel — slides away after generate */}
+        {/* LEFT prompt panel — slides away after generate */}
         <aside
-          className={`absolute inset-y-0 left-0 z-20 flex w-[300px] flex-col border-r border-white/10 bg-[#111827] text-slate-100 shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`absolute inset-y-0 left-0 z-20 flex w-[300px] flex-col border-r border-slate-200/80 bg-white shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             panelOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <div className="flex-1 space-y-3 overflow-y-auto p-3">
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                 Prompt
               </p>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={6}
-                className="w-full resize-none rounded-lg border border-white/10 bg-[#0B0F17] px-2.5 py-2 text-[12px] leading-relaxed text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400/40 focus:ring-1 focus:ring-cyan-400/20"
+                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-1 focus:ring-slate-300"
                 placeholder="Describe the UI…"
               />
             </div>
 
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                 Style
               </p>
               <StylePicker value={style} onChange={applyStyle} />
             </div>
 
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                 Surfaces
               </p>
-              <div className="rounded-lg border border-white/10 bg-[#0B0F17] px-2.5 py-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
                 <SurfaceColors
                   palette={palette}
                   onChange={setPalette}
@@ -355,23 +403,23 @@ export default function GenerativeUiWorkspacePage() {
             </div>
 
             {error ? (
-              <p className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-300">
+              <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
                 {error}
               </p>
             ) : null}
             {note ? (
-              <p className="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-slate-400">
+              <p className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-500">
                 {note}
               </p>
             ) : null}
           </div>
 
-          <div className="shrink-0 space-y-1.5 border-t border-white/10 p-3">
+          <div className="shrink-0 space-y-1.5 border-t border-slate-200 p-3">
             <button
               type="button"
               disabled={!!busy || !prompt.trim()}
               onClick={() => void onGenerate(false)}
-              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-400 text-[12px] font-semibold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 text-[12px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
               {busy === "generate" ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -385,7 +433,7 @@ export default function GenerativeUiWorkspacePage() {
                 type="button"
                 disabled={!!busy || !prompt.trim()}
                 onClick={() => void onGenerate(true)}
-                className="inline-flex h-8 items-center justify-center rounded-lg border border-white/10 text-[11px] font-semibold text-slate-300 hover:bg-white/5 disabled:opacity-50"
+                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               >
                 {busy === "fixture" ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -396,7 +444,7 @@ export default function GenerativeUiWorkspacePage() {
                 type="button"
                 disabled={!!busy || !prompt.trim()}
                 onClick={() => void onParseIntent()}
-                className="inline-flex h-8 items-center justify-center rounded-lg border border-white/10 text-[11px] font-semibold text-slate-300 hover:bg-white/5 disabled:opacity-50"
+                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               >
                 {busy === "intent" ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -407,22 +455,30 @@ export default function GenerativeUiWorkspacePage() {
           </div>
         </aside>
 
-        {/* Dimmer when panel open on small screens / focus preview when closed */}
         {panelOpen ? (
           <button
             type="button"
             aria-label="Close prompt panel"
-            className="absolute inset-0 z-10 bg-black/40 transition-opacity duration-500 lg:bg-black/25"
+            className="absolute inset-0 z-10 bg-slate-900/20 transition-opacity duration-500"
             onClick={() => setPanelOpen(false)}
           />
         ) : null}
 
-        {/* RIGHT — full stage */}
-        <section className="relative z-0 flex min-w-0 flex-1 flex-col bg-[#0B0F17]">
-          <div className="relative min-h-0 flex-1">
-            {/* Floating tabs — no dedicated chrome strip eating vertical space */}
+        {/* RIGHT — generated theme fills this stage */}
+        <section
+          className={`relative z-0 flex min-h-0 min-w-0 flex-1 flex-col ${
+            immersive ? "h-full bg-transparent" : "bg-slate-100"
+          }`}
+        >
+          <div className="relative min-h-0 flex-1 h-full">
             <div className="absolute right-3 top-2 z-20 flex items-center gap-1.5">
-              <div className="flex gap-0.5 rounded-md border border-white/10 bg-[#111827]/90 p-0.5 backdrop-blur">
+              <div
+                className={`flex gap-0.5 rounded-md p-0.5 backdrop-blur ${
+                  immersive
+                    ? "border border-white/15 bg-black/35"
+                    : "border border-slate-200 bg-white/95 shadow-sm"
+                }`}
+              >
                 {(
                   [
                     ["preview", "Preview"],
@@ -436,8 +492,12 @@ export default function GenerativeUiWorkspacePage() {
                     onClick={() => setTab(id)}
                     className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
                       tab === id
-                        ? "bg-white text-slate-900"
-                        : "text-slate-400 hover:bg-white/5 hover:text-white"
+                        ? immersive
+                          ? "bg-white text-slate-900"
+                          : "bg-slate-900 text-white"
+                        : immersive
+                          ? "text-white/70 hover:bg-white/10 hover:text-white"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                     }`}
                   >
                     {label}
@@ -448,32 +508,33 @@ export default function GenerativeUiWorkspacePage() {
 
             {tab === "preview" ? (
               busy && !previewSchema ? (
-                <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+                <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Rendering…
                 </div>
               ) : previewSchema ? (
-                <PreviewStage viewport={viewport} className="h-full w-full p-1">
+                <PreviewStage viewport={viewport} className="h-full w-full">
                   <UiSchemaRenderer
                     schema={previewSchema}
                     palette={palette}
+                    viewport={viewport}
                   />
                 </PreviewStage>
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                <div className="flex h-full items-center justify-center text-sm text-slate-400">
                   Write a prompt, then Generate
                 </div>
               )
             ) : null}
 
             {tab === "schema" ? (
-              <pre className="m-0 h-full overflow-auto bg-[#0B0F17] p-4 pt-10 text-[11px] leading-relaxed text-slate-300">
+              <pre className="m-0 h-full overflow-auto bg-white p-4 pt-10 text-[11px] leading-relaxed text-slate-700">
                 {schemaText || "// Schema appears after generate"}
               </pre>
             ) : null}
 
             {tab === "intent" ? (
-              <pre className="m-0 h-full overflow-auto bg-[#0B0F17] p-4 pt-10 text-[11px] leading-relaxed text-slate-300">
+              <pre className="m-0 h-full overflow-auto bg-white p-4 pt-10 text-[11px] leading-relaxed text-slate-700">
                 {intent
                   ? `${intentSource ? `// source: ${intentSource}\n` : ""}${JSON.stringify(intent, null, 2)}`
                   : "// Intent appears after parse / generate"}
@@ -484,7 +545,7 @@ export default function GenerativeUiWorkspacePage() {
               <button
                 type="button"
                 onClick={() => setPanelOpen(true)}
-                className="absolute bottom-4 left-4 z-30 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#1A2233]/95 px-3 py-2 text-[11px] font-semibold text-white shadow-xl backdrop-blur hover:bg-[#243049]"
+                className="absolute bottom-4 left-4 z-30 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-[11px] font-semibold text-slate-800 shadow-lg backdrop-blur hover:bg-white"
               >
                 <PanelLeft className="h-3.5 w-3.5" />
                 Edit prompt

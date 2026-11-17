@@ -15,6 +15,7 @@ import {
   GENUI_PALETTE_DEFAULTS,
   type GenuiPalette,
   type GenuiStyle,
+  type GenuiViewport,
 } from "@/config/genui";
 import type { UiNode, UiSchema } from "@/lib/genui/types";
 import { cn } from "@/lib/utils";
@@ -66,27 +67,42 @@ function NodeView({
   node,
   style,
   accent,
+  viewport,
 }: {
   node: UiNode;
   style: GenuiStyle;
   accent: string;
+  viewport: GenuiViewport;
 }) {
   const p = node.props || {};
   const isNight = style === "night-sky";
   const isEditorial = style === "editorial";
+  const isMobile = viewport === "mobile";
+  const isTablet = viewport === "tablet";
+  const isDesktop = viewport === "desktop";
 
   switch (node.type) {
     case "page":
       return (
         <div
-          className="min-h-full p-5 sm:p-8"
+          className={cn(
+            "h-full min-h-full",
+            // Desktop immersive: no outer padding — theme fills edge to edge
+            isDesktop ? "p-0" : isMobile ? "p-0" : "p-0"
+          )}
           style={{
             backgroundColor: "var(--genui-bg)",
             ...nightSkyBackground(style),
           }}
         >
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} accent={accent} />
+            <NodeView
+              key={c.id}
+              node={c}
+              style={style}
+              accent={accent}
+              viewport={viewport}
+            />
           ))}
         </div>
       );
@@ -94,7 +110,13 @@ function NodeView({
       return (
         <div className={cn("flex flex-col", gapClass(p.gap))}>
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} accent={accent} />
+            <NodeView
+              key={c.id}
+              node={c}
+              style={style}
+              accent={accent}
+              viewport={viewport}
+            />
           ))}
         </div>
       );
@@ -102,46 +124,81 @@ function NodeView({
       return (
         <div className={cn("flex flex-wrap items-center", gapClass(p.gap))}>
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} accent={accent} />
+            <NodeView
+              key={c.id}
+              node={c}
+              style={style}
+              accent={accent}
+              viewport={viewport}
+            />
           ))}
         </div>
       );
     case "grid": {
       const cols = Number(p.columns) || 3;
+      const capped = Math.min(Math.max(cols, 1), 4);
+      const effective = isMobile ? 1 : isTablet ? Math.min(capped, 2) : capped;
       return (
         <div
           className={cn("grid", gapClass(p.gap))}
           style={{
-            gridTemplateColumns: `repeat(${Math.min(
-              Math.max(cols, 1),
-              4
-            )}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${effective}, minmax(0, 1fr))`,
           }}
         >
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} accent={accent} />
+            <NodeView
+              key={c.id}
+              node={c}
+              style={style}
+              accent={accent}
+              viewport={viewport}
+            />
           ))}
         </div>
       );
     }
     case "sidebar-layout": {
       const [side, main] = node.children || [];
+      // Use preview viewport density — NOT browser media queries
+      const sideBySide = isDesktop || isTablet;
       return (
-        <div className="grid min-h-[480px] grid-cols-1 md:grid-cols-[220px_1fr]">
+        <div
+          className={cn(
+            "grid h-full min-h-full",
+            sideBySide
+              ? isTablet
+                ? "grid-cols-[180px_1fr]"
+                : "grid-cols-[220px_1fr]"
+              : "grid-cols-1"
+          )}
+        >
           <aside
-            className="border-b p-4 md:border-b-0 md:border-r"
+            className={cn(
+              "p-4",
+              sideBySide ? "border-r" : "border-b"
+            )}
             style={{
               backgroundColor: "var(--genui-card)",
               borderColor: "var(--genui-border)",
             }}
           >
             {side ? (
-              <NodeView node={side} style={style} accent={accent} />
+              <NodeView
+                node={side}
+                style={style}
+                accent={accent}
+                viewport={viewport}
+              />
             ) : null}
           </aside>
-          <main className="p-4 sm:p-6">
+          <main className={cn(isMobile ? "p-4" : "p-5")}>
             {main ? (
-              <NodeView node={main} style={style} accent={accent} />
+              <NodeView
+                node={main}
+                style={style}
+                accent={accent}
+                viewport={viewport}
+              />
             ) : null}
           </main>
         </div>
@@ -152,8 +209,8 @@ function NodeView({
       const text = str(p.text, "Heading");
       const cls = cn(
         isEditorial ? "font-serif tracking-tight" : "font-semibold tracking-tight",
-        level === 1 && "text-3xl sm:text-4xl",
-        level === 2 && "text-xl",
+        level === 1 && (isMobile ? "text-2xl" : "text-3xl"),
+        level === 2 && (isMobile ? "text-lg" : "text-xl"),
         level >= 3 && "text-base"
       );
       const el =
@@ -219,7 +276,13 @@ function NodeView({
           }}
         >
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} accent={accent} />
+            <NodeView
+              key={c.id}
+              node={c}
+              style={style}
+              accent={accent}
+              viewport={viewport}
+            />
           ))}
         </div>
       );
@@ -482,21 +545,33 @@ function NodeView({
 export function UiSchemaRenderer({
   schema,
   palette,
+  viewport = "desktop",
 }: {
   schema: UiSchema;
   /** Optional live overrides from Workspace color pickers */
   palette?: Partial<GenuiPalette>;
+  /** Preview device density — drives layout, not browser CSS breakpoints */
+  viewport?: GenuiViewport;
 }) {
   const style = schema.meta.style;
   const base = GENUI_PALETTE_DEFAULTS[style] || GENUI_PALETTE_DEFAULTS["modern-saas"];
   const merged: GenuiPalette = { ...base, ...palette };
   return (
-    <div style={paletteVars(merged)}>
-      <NodeView
-        node={schema.root}
-        style={style}
-        accent={merged.accent}
-      />
+    <div
+      className="flex min-h-full w-full flex-1 flex-col"
+      style={{
+        ...paletteVars(merged),
+        backgroundColor: merged.background,
+      }}
+    >
+      <div className="flex min-h-full w-full flex-1 flex-col [&>*]:min-h-full [&>*]:flex-1">
+        <NodeView
+          node={schema.root}
+          style={style}
+          accent={merged.accent}
+          viewport={viewport}
+        />
+      </div>
     </div>
   );
 }
