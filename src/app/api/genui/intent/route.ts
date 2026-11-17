@@ -1,0 +1,33 @@
+import { NextRequest, NextResponse } from "next/server";
+import { GENUI_STYLES, type GenuiStyle } from "@/config/genui";
+import { parseDesignIntent } from "@/lib/genui/intent-parser";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as {
+      prompt?: string;
+      style?: string;
+    };
+    const prompt = (body.prompt || "").trim();
+    if (!prompt) {
+      return NextResponse.json(
+        { error: "prompt is required" },
+        { status: 400 }
+      );
+    }
+    const style = GENUI_STYLES.includes(body.style as GenuiStyle)
+      ? (body.style as GenuiStyle)
+      : undefined;
+
+    const result = await parseDesignIntent(prompt, { style });
+    return NextResponse.json(result);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Intent parse failed" },
+      { status: 500 }
+    );
+  }
+}
