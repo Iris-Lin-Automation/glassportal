@@ -25,6 +25,10 @@ import {
   CritiquePanel,
   type HumanPin,
 } from "@/components/genui/CritiquePanel";
+import {
+  MarkOverlay,
+  type MarkStroke,
+} from "@/components/genui/MarkOverlay";
 import { PreviewStage } from "@/components/genui/PreviewStage";
 import { StylePicker } from "@/components/genui/StylePicker";
 import { SurfaceColors } from "@/components/genui/SurfaceColors";
@@ -74,8 +78,10 @@ export default function GenerativeUiWorkspacePage() {
   const [annotateMode, setAnnotateMode] = useState(false);
   const [pendingTarget, setPendingTarget] =
     useState<GenuiAnnotateTarget | null>(null);
+  const [pendingHits, setPendingHits] = useState<GenuiAnnotateTarget[]>([]);
   const [pendingNote, setPendingNote] = useState("");
   const [feedbackCollapsed, setFeedbackCollapsed] = useState(false);
+  const [markStrokes, setMarkStrokes] = useState<MarkStroke[]>([]);
   const historyRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
@@ -181,10 +187,16 @@ export default function GenerativeUiWorkspacePage() {
     const usefulPins = pins.filter((p) => p.note.trim());
     if (usefulPins.length) {
       lines.push("");
-      lines.push("Human pinned notes on UI blocks:");
+      lines.push("Human circled / pinned notes on UI blocks:");
       for (const p of usefulPins) {
+        const matches =
+          p.matchedNodes && p.matchedNodes.length
+            ? ` (also near: ${p.matchedNodes
+                .map((m) => `${m.nodeType} id=${m.nodeId}`)
+                .join(", ")})`
+            : "";
         lines.push(
-          `- [${p.nodeType} id=${p.nodeId}] ${p.label}: ${p.note.trim()}`
+          `- [${p.nodeType} id=${p.nodeId}] ${p.label}${matches}: ${p.note.trim()}`
         );
       }
     }
@@ -197,22 +209,28 @@ export default function GenerativeUiWorkspacePage() {
     setBusy("revise");
     try {
       const notes = buildHumanRevisionNotes();
+      // Prefer live LLM when the user wrote real feedback (even on fixture runs)
+      const useLocal = run?.model.mode === "fixture" && !notes;
       const res = await fetch("/api/genui/revise", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           revisionId: revision.id,
           notes: notes || undefined,
-          local: run?.model.mode === "fixture",
+          local: useLocal,
           critiqueAfter: true,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Revise failed");
       applyDetail(json);
+      if (json.palettePatch) {
+        setPalette((prev) => ({ ...prev, ...json.palettePatch }));
+      }
       setNote(json.meta?.note || "");
       setHumanNotes("");
       setPins([]);
+      setMarkStrokes([]);
       setPendingTarget(null);
       setPendingNote("");
       setAnnotateMode(false);
@@ -226,10 +244,26 @@ export default function GenerativeUiWorkspacePage() {
     }
   };
 
-  const onAnnotatePick = (target: GenuiAnnotateTarget) => {
-    setPendingTarget(target);
+  const onStrokeComplete = (
+    stroke: MarkStroke,
+    hits: GenuiAnnotateTarget[]
+  ) => {
+    const primary =
+      hits[0] ||
+      ({
+        nodeId: "region",
+        nodeType: "region",
+        label: "Circled region",
+      } satisfies GenuiAnnotateTarget);
+    setMarkStrokes((prev) => [...prev, stroke]);
+    setPendingHits(hits);
+    setPendingTarget({
+      ...primary,
+      label: hits.length
+        ? `Circled · ${primary.label}`
+        : "Circled region",
+    });
     setPendingNote("");
-    setAnnotateMode(true);
     setFeedbackCollapsed(false);
   };
 
@@ -652,19 +686,25 @@ export default function GenerativeUiWorkspacePage() {
               <div className="relative h-full min-h-0">
                 {annotateMode ? (
                   <div className="pointer-events-none absolute left-3 top-12 z-20 rounded-full bg-cyan-600/95 px-2.5 py-1 text-[10px] font-semibold text-white shadow">
-                    Click a block to mark
+                    Drag to circle an area
                   </div>
                 ) : null}
                 {previewSchema ? (
-                  <PreviewStage viewport={viewport} className="h-full w-full">
-                    <UiSchemaRenderer
-                      schema={previewSchema}
-                      palette={palette}
-                      viewport={viewport}
-                      annotateEnabled={annotateMode || !!pendingTarget}
-                      onAnnotatePick={onAnnotatePick}
+                  <div className="relative h-full w-full">
+                    <PreviewStage viewport={viewport} className="h-full w-full">
+                      <UiSchemaRenderer
+                        schema={previewSchema}
+                        palette={palette}
+                        viewport={viewport}
+                        annotateEnabled={false}
+                      />
+                    </PreviewStage>
+                    <MarkOverlay
+                      enabled={annotateMode}
+                      strokes={markStrokes}
+                      onStrokeComplete={onStrokeComplete}
                     />
-                  </PreviewStage>
+                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
                     Generate a UI first
@@ -682,9 +722,12 @@ export default function GenerativeUiWorkspacePage() {
                     humanNotes={humanNotes}
                     onHumanNotesChange={setHumanNotes}
                     pins={pins}
-                    onRemovePin={(id) =>
-                      setPins((prev) => prev.filter((p) => p.id !== id))
-                    }
+                    onRemovePin={(id) => {
+                      setPins((prev) => prev.filter((p) => p.id !== id));
+                      setMarkStrokes((prev) =>
+                        prev.filter((s) => s.id !== id)
+                      );
+                    }}
                     onUpdatePin={(id, note) =>
                       setPins((prev) =>
                         prev.map((p) => (p.id === id ? { ...p, note } : p))
@@ -694,6 +737,7 @@ export default function GenerativeUiWorkspacePage() {
                     onToggleAnnotate={() => {
                       setAnnotateMode((v) => !v);
                       setPendingTarget(null);
+                      setPendingHits([]);
                       setPendingNote("");
                       setFeedbackCollapsed(false);
                     }}
@@ -702,20 +746,35 @@ export default function GenerativeUiWorkspacePage() {
                     onPendingNoteChange={setPendingNote}
                     onConfirmPending={() => {
                       if (!pendingTarget || !pendingNote.trim()) return;
+                      const stroke = markStrokes[markStrokes.length - 1];
+                      const pinId = makeId("pin");
                       setPins((prev) => [
                         ...prev,
                         {
-                          id: makeId("pin"),
+                          id: pinId,
                           ...pendingTarget,
                           note: pendingNote.trim(),
+                          strokePath: stroke?.path,
+                          strokeBox: stroke?.box,
+                          matchedNodes: pendingHits,
                         },
                       ]);
+                      if (stroke) {
+                        setMarkStrokes((prev) =>
+                          prev.map((s) =>
+                            s.id === stroke.id ? { ...s, id: pinId } : s
+                          )
+                        );
+                      }
                       setPendingTarget(null);
+                      setPendingHits([]);
                       setPendingNote("");
                     }}
                     onCancelPending={() => {
                       setPendingTarget(null);
+                      setPendingHits([]);
                       setPendingNote("");
+                      setMarkStrokes((prev) => prev.slice(0, -1));
                     }}
                     onCritique={() => void onCritique()}
                     onRevise={() => void onRevise()}

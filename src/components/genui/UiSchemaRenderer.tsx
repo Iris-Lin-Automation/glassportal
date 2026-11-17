@@ -309,7 +309,19 @@ function NodeBody({
           ))}
         </div>
       );
-    case "kpi-card":
+    case "kpi-card": {
+      const deltaRaw = str(p.delta);
+      const negative = /^\s*-/.test(deltaRaw);
+      const deltaColor =
+        str(p.deltaColor) ||
+        (negative
+          ? isNight
+            ? "#FB7185"
+            : "#DC2626"
+          : isNight
+            ? "#34D399"
+            : "#059669");
+      const accentColor = str(p.accentColor);
       return (
         <div
           className={cn(
@@ -318,7 +330,12 @@ function NodeBody({
           )}
           style={{
             backgroundColor: "var(--genui-card)",
-            border: "1px solid var(--genui-border)",
+            border: accentColor
+              ? `1px solid ${accentColor}`
+              : "1px solid var(--genui-border)",
+            boxShadow: accentColor
+              ? `0 0 0 1px ${accentColor}33`
+              : undefined,
           }}
         >
           <p
@@ -329,20 +346,21 @@ function NodeBody({
           </p>
           <p
             className="mt-2 text-2xl font-bold tracking-tight"
-            style={{ color: "var(--genui-text)" }}
+            style={{ color: accentColor || "var(--genui-text)" }}
           >
             {str(p.value, "—")}
           </p>
           {p.delta ? (
             <p
               className="mt-1 text-xs font-medium"
-              style={{ color: isNight ? "#34D399" : "#059669" }}
+              style={{ color: deltaColor }}
             >
-              {str(p.delta)}
+              {deltaRaw}
             </p>
           ) : null}
         </div>
       );
+    }
     case "badge":
       return (
         <span
@@ -442,6 +460,7 @@ function NodeBody({
       const points = numArr(p.points);
       const data = points.map((v, i) => ({ name: `W${i + 1}`, value: v }));
       const chartType = str(p.chartType, "line");
+      const stroke = str(p.accentColor) || accent;
       return (
         <div
           className="rounded-xl p-4"
@@ -463,7 +482,7 @@ function NodeBody({
                   <XAxis dataKey="name" hide />
                   <YAxis hide />
                   <Tooltip />
-                  <Bar dataKey="value" fill={accent} radius={4} />
+                  <Bar dataKey="value" fill={stroke} radius={4} />
                 </BarChart>
               ) : (
                 <LineChart data={data}>
@@ -473,7 +492,7 @@ function NodeBody({
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke={accent}
+                    stroke={stroke}
                     strokeWidth={2}
                     dot={false}
                   />

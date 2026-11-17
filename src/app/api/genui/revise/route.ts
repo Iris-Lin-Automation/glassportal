@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ...detail,
       previousRevisionId: parent.id,
+      palettePatch: revised.palettePatch || null,
       meta: {
         mode: revised.mode,
         note:

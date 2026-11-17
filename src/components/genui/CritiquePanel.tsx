@@ -33,6 +33,10 @@ const LABELS: Record<CritiqueDimension, string> = {
 export type HumanPin = GenuiAnnotateTarget & {
   id: string;
   note: string;
+  /** Optional freehand mark on preview */
+  strokePath?: string;
+  strokeBox?: { x: number; y: number; w: number; h: number };
+  matchedNodes?: GenuiAnnotateTarget[];
 };
 
 /** Compact floating feedback dock — keeps preview visible */
@@ -179,7 +183,7 @@ export function CritiquePanel({
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
         {annotateMode ? (
           <p className="rounded-md bg-cyan-50 px-2 py-1 text-[10px] font-medium text-cyan-900">
-            Click a preview block to pin a note
+            Drag on the preview to circle an area, then type what to change
           </p>
         ) : null}
 

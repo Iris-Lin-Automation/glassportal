@@ -22,29 +22,89 @@ function cloneNode(node: UiNode): UiNode {
   };
 }
 
+function extractTargetNodeIds(notes: string) {
+  const ids = new Set<string>();
+  for (const m of notes.matchAll(/id=([a-zA-Z0-9_-]+)/g)) {
+    ids.add(m[1]);
+  }
+  return ids;
+}
+
+function resolveColorFromNotes(notes: string) {
+  const hex = notes.match(/#([0-9a-fA-F]{3,8})\b/);
+  if (hex) return `#${hex[1]}`;
+  if (/青绿|teal|cyan|青/i.test(notes)) return "#22D3EE";
+  if (/绿|green/i.test(notes) && !/红/.test(notes)) return "#34D399";
+  if (/蓝|blue/i.test(notes)) return "#60A5FA";
+  if (/紫|purple|violet/i.test(notes)) return "#A78BFA";
+  if (/橙|orange/i.test(notes)) return "#FB923C";
+  if (/黄|yellow|金/i.test(notes)) return "#FBBF24";
+  if (/白|white/i.test(notes)) return "#F8FAFC";
+  // “变一下这个红色” / change this red → swap red toward cyan accent
+  if (/红|rose|crimson|red/i.test(notes)) return "#22D3EE";
+  return null;
+}
+
 function applyLocalHumanNotes(root: UiNode, notes: string) {
   const rename =
     notes.match(/rename(?:\s+title)?\s+to\s+[“"']?([^”"'\n.]+)[”"']?/i) ||
     notes.match(/title\s+say\s+[“"']?([^”"'\n.]+)[”"']?/i);
   const targetTitle = rename?.[1]?.trim();
-  if (!targetTitle) return root;
+  const color = resolveColorFromNotes(notes);
+  const wantsColor =
+    Boolean(color) && /色|color|红|绿|蓝|青|橙|紫|变/i.test(notes);
+  const targetIds = extractTargetNodeIds(notes);
+  const mentionsKpi = /kpi|metric|churn|revenue|users|卡片|指标/i.test(notes);
+  const mentionsSidebar = /sidebar|侧边/i.test(notes);
 
   const walk = (n: UiNode): UiNode => {
     const next: UiNode = {
       ...n,
       children: n.children?.map(walk),
     };
-    if (
-      (n.type === "chart" || n.type === "table" || n.type === "heading") &&
-      notes.toLowerCase().includes(String(n.props?.title || n.props?.text || "").toLowerCase().slice(0, 12) || "___never___")
-    ) {
-      if (n.type === "heading") {
-        next.props = { ...n.props, text: targetTitle };
-      } else {
+    const targeted =
+      targetIds.has(n.id) ||
+      (mentionsKpi && n.type === "kpi-card") ||
+      (mentionsSidebar && n.type === "sidebar-layout");
+
+    if (targetTitle) {
+      if (
+        (n.type === "chart" || n.type === "table" || n.type === "heading") &&
+        (targeted ||
+          notes
+            .toLowerCase()
+            .includes(
+              String(n.props?.title || n.props?.text || "")
+                .toLowerCase()
+                .slice(0, 12) || "___never___"
+            ))
+      ) {
+        if (n.type === "heading") {
+          next.props = { ...n.props, text: targetTitle };
+        } else {
+          next.props = { ...n.props, title: targetTitle };
+        }
+      } else if (n.type === "chart" && /chart/i.test(notes)) {
         next.props = { ...n.props, title: targetTitle };
       }
-    } else if (n.type === "chart" && /chart/i.test(notes)) {
-      next.props = { ...n.props, title: targetTitle };
+    }
+
+    if (wantsColor && color) {
+      if (n.type === "kpi-card" && (targeted || targetIds.size === 0)) {
+        const delta = String(n.props?.delta || "");
+        if (/红|red|rose/i.test(notes) || /^\s*-/.test(delta)) {
+          next.props = {
+            ...next.props,
+            deltaColor: color,
+            accentColor: color,
+          };
+        } else if (targeted) {
+          next.props = { ...next.props, accentColor: color };
+        }
+      }
+      if (n.type === "chart" && (targeted || /chart|图/i.test(notes))) {
+        next.props = { ...next.props, accentColor: color };
+      }
     }
     return next;
   };
@@ -170,6 +230,12 @@ export type ReviseResult = {
   rawHash: string;
   usage?: { input: number; output: number };
   notes: string;
+  palettePatch?: Partial<{
+    accent: string;
+    background: string;
+    card: string;
+    table: string;
+  }>;
 };
 
 export async function reviseUiSchema(opts: {
@@ -200,6 +266,11 @@ export async function reviseUiSchema(opts: {
       opts.intent,
       notes
     );
+    const color = resolveColorFromNotes(notes);
+    const palettePatch =
+      color && /色|color|红|绿|蓝|青|橙|紫|accent|变/i.test(notes)
+        ? { accent: color }
+        : undefined;
     const raw = JSON.stringify(schema);
     return {
       schema,
@@ -208,6 +279,7 @@ export async function reviseUiSchema(opts: {
       provider: "local",
       rawHash: await sha256Hex(raw),
       notes,
+      palettePatch,
     };
   }
 
