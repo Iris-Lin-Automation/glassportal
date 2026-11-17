@@ -75,6 +75,7 @@ export default function GenerativeUiWorkspacePage() {
   const [pendingTarget, setPendingTarget] =
     useState<GenuiAnnotateTarget | null>(null);
   const [pendingNote, setPendingNote] = useState("");
+  const [feedbackCollapsed, setFeedbackCollapsed] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
@@ -229,6 +230,7 @@ export default function GenerativeUiWorkspacePage() {
     setPendingTarget(target);
     setPendingNote("");
     setAnnotateMode(true);
+    setFeedbackCollapsed(false);
   };
 
   useEffect(() => {
@@ -317,7 +319,10 @@ export default function GenerativeUiWorkspacePage() {
   }, [revision, revisions]);
 
   const immersive =
-    !panelOpen && tab === "preview" && !!previewSchema && viewport === "desktop";
+    !panelOpen &&
+    !!previewSchema &&
+    viewport === "desktop" &&
+    (tab === "preview" || tab === "critique");
 
   return (
     <div
@@ -644,35 +649,28 @@ export default function GenerativeUiWorkspacePage() {
             ) : null}
 
             {tab === "critique" ? (
-              <div className="flex h-full min-h-0 pt-9">
-                <div className="relative min-h-0 min-w-0 flex-[1.15] border-r border-slate-200 bg-slate-100">
-                  {annotateMode ? (
-                    <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full bg-cyan-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow">
-                      Click a block to mark
-                    </div>
-                  ) : null}
-                  {previewSchema ? (
-                    <PreviewStage
-                      viewport={viewport === "desktop" ? "desktop" : viewport}
-                      className="h-full w-full"
-                    >
-                      <UiSchemaRenderer
-                        schema={previewSchema}
-                        palette={palette}
-                        viewport={
-                          viewport === "desktop" ? "desktop" : viewport
-                        }
-                        annotateEnabled={annotateMode || !!pendingTarget}
-                        onAnnotatePick={onAnnotatePick}
-                      />
-                    </PreviewStage>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                      Generate a UI first
-                    </div>
-                  )}
-                </div>
-                <div className="min-h-0 w-[min(380px,42%)] shrink-0">
+              <div className="relative h-full min-h-0">
+                {annotateMode ? (
+                  <div className="pointer-events-none absolute left-3 top-12 z-20 rounded-full bg-cyan-600/95 px-2.5 py-1 text-[10px] font-semibold text-white shadow">
+                    Click a block to mark
+                  </div>
+                ) : null}
+                {previewSchema ? (
+                  <PreviewStage viewport={viewport} className="h-full w-full">
+                    <UiSchemaRenderer
+                      schema={previewSchema}
+                      palette={palette}
+                      viewport={viewport}
+                      annotateEnabled={annotateMode || !!pendingTarget}
+                      onAnnotatePick={onAnnotatePick}
+                    />
+                  </PreviewStage>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                    Generate a UI first
+                  </div>
+                )}
+                <div className="absolute bottom-4 right-4 z-30">
                   <CritiquePanel
                     critique={revision?.critique || null}
                     previousCritique={previousRevision?.critique || null}
@@ -697,6 +695,7 @@ export default function GenerativeUiWorkspacePage() {
                       setAnnotateMode((v) => !v);
                       setPendingTarget(null);
                       setPendingNote("");
+                      setFeedbackCollapsed(false);
                     }}
                     pendingTarget={pendingTarget}
                     pendingNote={pendingNote}
@@ -720,6 +719,10 @@ export default function GenerativeUiWorkspacePage() {
                     }}
                     onCritique={() => void onCritique()}
                     onRevise={() => void onRevise()}
+                    collapsed={feedbackCollapsed}
+                    onToggleCollapsed={() =>
+                      setFeedbackCollapsed((v) => !v)
+                    }
                   />
                 </div>
               </div>
