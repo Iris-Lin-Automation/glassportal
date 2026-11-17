@@ -550,12 +550,20 @@ export default function BuilderPage() {
           <p className="mt-0.5 text-xs text-slate-500">
             Notion → polished share page
           </p>
-          <a
-            href="/generative-ui"
-            className="mt-1 inline-block text-[11px] font-semibold text-indigo-700 underline-offset-2 hover:underline"
-          >
-            Open Generative UI Playground →
-          </a>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+            <a
+              href="/generative-ui"
+              className="text-[11px] font-semibold text-indigo-700 underline-offset-2 hover:underline"
+            >
+              Generative UI →
+            </a>
+            <a
+              href="/generative-ui/dashboard"
+              className="text-[11px] font-semibold text-slate-600 underline-offset-2 hover:underline"
+            >
+              Eval Dashboard →
+            </a>
+          </div>
         </div>
       </div>
       {isGuest ? (

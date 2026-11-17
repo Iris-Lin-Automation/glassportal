@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  BarChart3,
   History,
   Loader2,
   Monitor,
@@ -49,7 +51,9 @@ const OWNER_KEY = "glassportal-local";
 const SAMPLE_PROMPT =
   "Create a dark geek night-sky analytics dashboard with a sidebar, KPI cards, revenue chart and recent transactions.";
 
-export default function GenerativeUiWorkspacePage() {
+function GenerativeUiWorkspaceInner() {
+  const searchParams = useSearchParams();
+  const deepLinkRun = searchParams.get("run");
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
   const [style, setStyle] = useState<GenuiStyle>("night-sky");
   const [palette, setPalette] = useState<GenuiPalette>(
@@ -287,6 +291,10 @@ export default function GenerativeUiWorkspacePage() {
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
+    if (deepLinkRun) {
+      void loadRun(deepLinkRun);
+      return;
+    }
     void onGenerate(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -412,6 +420,29 @@ export default function GenerativeUiWorkspacePage() {
           >
             Generative UI
           </span>
+          <Link
+            href="/generative-ui/dashboard"
+            className={`ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium ${
+              immersive
+                ? "text-white/70 hover:bg-white/10 hover:text-white"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            }`}
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+            Dashboard
+          </Link>
+          {run ? (
+            <Link
+              href={`/generative-ui/inspector?run=${encodeURIComponent(run.id)}`}
+              className={`inline-flex items-center rounded-md px-1.5 py-1 text-[11px] font-medium ${
+                immersive
+                  ? "text-white/70 hover:bg-white/10 hover:text-white"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              }`}
+            >
+              Inspector
+            </Link>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1">
@@ -840,5 +871,20 @@ export default function GenerativeUiWorkspacePage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function GenerativeUiWorkspacePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[100dvh] items-center justify-center bg-slate-50 text-sm text-slate-500">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Loading workspace…
+        </div>
+      }
+    >
+      <GenerativeUiWorkspaceInner />
+    </Suspense>
   );
 }
