@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   Line,
   LineChart,
@@ -10,40 +11,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { GenuiStyle } from "@/config/genui";
+import {
+  GENUI_PALETTE_DEFAULTS,
+  type GenuiPalette,
+  type GenuiStyle,
+} from "@/config/genui";
 import type { UiNode, UiSchema } from "@/lib/genui/types";
 import { cn } from "@/lib/utils";
-
-function themeShell(style: GenuiStyle) {
-  if (style === "editorial") {
-    return {
-      page: "bg-[#FAF7F2] text-stone-900",
-      card: "rounded-none border border-stone-200 bg-white",
-      accent: "bg-stone-900 text-white",
-      muted: "text-stone-500",
-      heading: "font-serif tracking-tight",
-      kpi: "border-stone-200",
-    };
-  }
-  if (style === "minimal") {
-    return {
-      page: "bg-white text-slate-900",
-      card: "rounded-xl border border-slate-200/80 bg-white",
-      accent: "bg-slate-900 text-white",
-      muted: "text-slate-500",
-      heading: "font-semibold tracking-tight",
-      kpi: "border-slate-200",
-    };
-  }
-  return {
-    page: "bg-slate-50 text-slate-900",
-    card: "rounded-xl border border-slate-200 bg-white shadow-sm",
-    accent: "bg-indigo-600 text-white",
-    muted: "text-slate-500",
-    heading: "font-semibold tracking-tight",
-    kpi: "border-slate-200",
-  };
-}
 
 function gapClass(gap?: unknown) {
   if (gap === "sm") return "gap-2";
@@ -60,22 +34,59 @@ function numArr(v: unknown): number[] {
   return v.map((x) => Number(x) || 0);
 }
 
+function paletteVars(palette: GenuiPalette): CSSProperties {
+  return {
+    ["--genui-bg" as string]: palette.background,
+    ["--genui-card" as string]: palette.card,
+    ["--genui-table" as string]: palette.table,
+    ["--genui-text" as string]: palette.text,
+    ["--genui-muted" as string]: palette.muted,
+    ["--genui-accent" as string]: palette.accent,
+    ["--genui-border" as string]: palette.border,
+    color: palette.text,
+  };
+}
+
+function nightSkyBackground(style: GenuiStyle): CSSProperties | undefined {
+  if (style !== "night-sky") return undefined;
+  return {
+    backgroundImage: `
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.55), transparent),
+      radial-gradient(1px 1px at 70% 18%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1.5px 1.5px at 40% 70%, rgba(165,243,252,0.55), transparent),
+      radial-gradient(1px 1px at 85% 55%, rgba(255,255,255,0.35), transparent),
+      radial-gradient(900px 420px at 15% -10%, rgba(56,189,248,0.18), transparent),
+      radial-gradient(700px 380px at 90% 0%, rgba(99,102,241,0.16), transparent),
+      linear-gradient(180deg, var(--genui-bg), #04060f 100%)
+    `,
+  };
+}
+
 function NodeView({
   node,
   style,
+  accent,
 }: {
   node: UiNode;
   style: GenuiStyle;
+  accent: string;
 }) {
-  const t = themeShell(style);
   const p = node.props || {};
+  const isNight = style === "night-sky";
+  const isEditorial = style === "editorial";
 
   switch (node.type) {
     case "page":
       return (
-        <div className={cn("min-h-full p-5 sm:p-8", t.page)}>
+        <div
+          className="min-h-full p-5 sm:p-8"
+          style={{
+            backgroundColor: "var(--genui-bg)",
+            ...nightSkyBackground(style),
+          }}
+        >
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} />
+            <NodeView key={c.id} node={c} style={style} accent={accent} />
           ))}
         </div>
       );
@@ -83,7 +94,7 @@ function NodeView({
       return (
         <div className={cn("flex flex-col", gapClass(p.gap))}>
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} />
+            <NodeView key={c.id} node={c} style={style} accent={accent} />
           ))}
         </div>
       );
@@ -91,7 +102,7 @@ function NodeView({
       return (
         <div className={cn("flex flex-wrap items-center", gapClass(p.gap))}>
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} />
+            <NodeView key={c.id} node={c} style={style} accent={accent} />
           ))}
         </div>
       );
@@ -108,7 +119,7 @@ function NodeView({
           }}
         >
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} />
+            <NodeView key={c.id} node={c} style={style} accent={accent} />
           ))}
         </div>
       );
@@ -117,11 +128,21 @@ function NodeView({
       const [side, main] = node.children || [];
       return (
         <div className="grid min-h-[480px] grid-cols-1 md:grid-cols-[220px_1fr]">
-          <aside className="border-b border-slate-200 bg-white p-4 md:border-b-0 md:border-r">
-            {side ? <NodeView node={side} style={style} /> : null}
+          <aside
+            className="border-b p-4 md:border-b-0 md:border-r"
+            style={{
+              backgroundColor: "var(--genui-card)",
+              borderColor: "var(--genui-border)",
+            }}
+          >
+            {side ? (
+              <NodeView node={side} style={style} accent={accent} />
+            ) : null}
           </aside>
           <main className="p-4 sm:p-6">
-            {main ? <NodeView node={main} style={style} /> : null}
+            {main ? (
+              <NodeView node={main} style={style} accent={accent} />
+            ) : null}
           </main>
         </div>
       );
@@ -129,18 +150,29 @@ function NodeView({
     case "heading": {
       const level = Number(p.level) || 2;
       const text = str(p.text, "Heading");
-      const cls = cn(t.heading, level === 1 && "text-3xl sm:text-4xl", level === 2 && "text-xl", level >= 3 && "text-base");
-      if (level === 1) return <h1 className={cls}>{text}</h1>;
-      if (level === 2) return <h2 className={cls}>{text}</h2>;
-      return <h3 className={cls}>{text}</h3>;
+      const cls = cn(
+        isEditorial ? "font-serif tracking-tight" : "font-semibold tracking-tight",
+        level === 1 && "text-3xl sm:text-4xl",
+        level === 2 && "text-xl",
+        level >= 3 && "text-base"
+      );
+      const el =
+        level === 1 ? (
+          <h1 className={cls}>{text}</h1>
+        ) : level === 2 ? (
+          <h2 className={cls}>{text}</h2>
+        ) : (
+          <h3 className={cls}>{text}</h3>
+        );
+      return <div style={{ color: "var(--genui-text)" }}>{el}</div>;
     }
     case "text":
       return (
         <p
-          className={cn(
-            "text-[15px] leading-relaxed",
-            p.muted ? t.muted : "text-slate-800"
-          )}
+          className="text-[15px] leading-relaxed"
+          style={{
+            color: p.muted ? "var(--genui-muted)" : "var(--genui-text)",
+          }}
         >
           {str(p.text)}
         </p>
@@ -150,13 +182,24 @@ function NodeView({
       return (
         <button
           type="button"
-          className={cn(
-            "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition",
-            variant === "primary" && t.accent,
-            variant === "secondary" &&
-              "border border-slate-200 bg-white text-slate-800",
-            variant === "ghost" && "text-slate-600 hover:bg-slate-100"
-          )}
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+          style={
+            variant === "primary"
+              ? {
+                  backgroundColor: "var(--genui-accent)",
+                  color: isNight ? "#041016" : "#FFFFFF",
+                }
+              : variant === "secondary"
+                ? {
+                    backgroundColor: "var(--genui-card)",
+                    color: "var(--genui-text)",
+                    border: "1px solid var(--genui-border)",
+                  }
+                : {
+                    backgroundColor: "transparent",
+                    color: "var(--genui-muted)",
+                  }
+          }
         >
           {str(p.label, "Button")}
         </button>
@@ -164,23 +207,51 @@ function NodeView({
     }
     case "card":
       return (
-        <div className={cn("p-4", t.card)}>
+        <div
+          className={cn(
+            "p-4",
+            isEditorial ? "rounded-none" : "rounded-xl",
+            isNight && "shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_12px_40px_rgba(0,0,0,0.35)]"
+          )}
+          style={{
+            backgroundColor: "var(--genui-card)",
+            border: "1px solid var(--genui-border)",
+          }}
+        >
           {(node.children || []).map((c) => (
-            <NodeView key={c.id} node={c} style={style} />
+            <NodeView key={c.id} node={c} style={style} accent={accent} />
           ))}
         </div>
       );
     case "kpi-card":
       return (
-        <div className={cn("p-4", t.card, t.kpi)}>
-          <p className={cn("text-xs font-medium uppercase tracking-wide", t.muted)}>
+        <div
+          className={cn(
+            "rounded-xl p-4",
+            isNight && "shadow-[0_0_24px_rgba(34,211,238,0.06)]"
+          )}
+          style={{
+            backgroundColor: "var(--genui-card)",
+            border: "1px solid var(--genui-border)",
+          }}
+        >
+          <p
+            className="text-xs font-medium uppercase tracking-wide"
+            style={{ color: "var(--genui-muted)" }}
+          >
             {str(p.title, "Metric")}
           </p>
-          <p className="mt-2 text-2xl font-bold tracking-tight">
+          <p
+            className="mt-2 text-2xl font-bold tracking-tight"
+            style={{ color: "var(--genui-text)" }}
+          >
             {str(p.value, "—")}
           </p>
           {p.delta ? (
-            <p className="mt-1 text-xs font-medium text-emerald-600">
+            <p
+              className="mt-1 text-xs font-medium"
+              style={{ color: isNight ? "#34D399" : "#059669" }}
+            >
               {str(p.delta)}
             </p>
           ) : null}
@@ -188,18 +259,33 @@ function NodeView({
       );
     case "badge":
       return (
-        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+        <span
+          className="inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+          style={{
+            backgroundColor: "var(--genui-card)",
+            border: "1px solid var(--genui-border)",
+            color: "var(--genui-muted)",
+          }}
+        >
           {str(p.text, "Badge")}
         </span>
       );
     case "input":
       return (
         <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-slate-600">
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--genui-muted)" }}
+          >
             {str(p.label, "Field")}
           </span>
           <input
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={{
+              backgroundColor: "var(--genui-card)",
+              border: "1px solid var(--genui-border)",
+              color: "var(--genui-text)",
+            }}
             placeholder={str(p.placeholder, "")}
             readOnly
           />
@@ -212,16 +298,26 @@ function NodeView({
           src={
             str(
               p.src,
-              "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80"
+              isNight
+                ? "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1200&q=80"
+                : "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80"
             )
           }
           alt={str(p.alt, "")}
           className="h-auto w-full rounded-xl object-cover"
-          style={{ aspectRatio: str(p.aspect, "16/9") }}
+          style={{
+            aspectRatio: str(p.aspect, "16/9"),
+            border: "1px solid var(--genui-border)",
+          }}
         />
       );
     case "divider":
-      return <hr className="border-0 border-t border-slate-200" />;
+      return (
+        <hr
+          className="border-0 border-t"
+          style={{ borderColor: "var(--genui-border)" }}
+        />
+      );
     case "spacer":
       return <div className="h-6" />;
     case "nav": {
@@ -229,9 +325,12 @@ function NodeView({
         ? p.items.map(String)
         : ["Home", "Product"];
       return (
-        <nav className="flex flex-wrap gap-3 text-sm font-medium text-slate-600">
+        <nav
+          className="flex flex-wrap gap-3 text-sm font-medium"
+          style={{ color: "var(--genui-muted)" }}
+        >
           {items.map((item) => (
-            <span key={item} className="hover:text-slate-900">
+            <span key={item} style={{ color: "var(--genui-muted)" }}>
               {item}
             </span>
           ))}
@@ -243,7 +342,10 @@ function NodeView({
         ? p.items.map(String)
         : ["Item one", "Item two"];
       return (
-        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+        <ul
+          className="list-disc space-y-1 pl-5 text-sm"
+          style={{ color: "var(--genui-text)" }}
+        >
           {items.map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -255,8 +357,17 @@ function NodeView({
       const data = points.map((v, i) => ({ name: `W${i + 1}`, value: v }));
       const chartType = str(p.chartType, "line");
       return (
-        <div className={cn("p-4", t.card)}>
-          <p className="mb-3 text-sm font-semibold">
+        <div
+          className="rounded-xl p-4"
+          style={{
+            backgroundColor: "var(--genui-card)",
+            border: "1px solid var(--genui-border)",
+          }}
+        >
+          <p
+            className="mb-3 text-sm font-semibold"
+            style={{ color: "var(--genui-text)" }}
+          >
             {str(p.title, "Chart")}
           </p>
           <div className="h-48 w-full">
@@ -266,7 +377,7 @@ function NodeView({
                   <XAxis dataKey="name" hide />
                   <YAxis hide />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#4f46e5" radius={4} />
+                  <Bar dataKey="value" fill={accent} radius={4} />
                 </BarChart>
               ) : (
                 <LineChart data={data}>
@@ -276,7 +387,7 @@ function NodeView({
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="#4f46e5"
+                    stroke={accent}
                     strokeWidth={2}
                     dot={false}
                   />
@@ -297,18 +408,37 @@ function NodeView({
           )
         : [];
       return (
-        <div className={cn("overflow-hidden", t.card)}>
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">
+        <div
+          className="overflow-hidden rounded-xl"
+          style={{
+            backgroundColor: "var(--genui-table)",
+            border: "1px solid var(--genui-border)",
+          }}
+        >
+          <div
+            className="border-b px-4 py-3 text-sm font-semibold"
+            style={{
+              borderColor: "var(--genui-border)",
+              color: "var(--genui-text)",
+            }}
+          >
             {str(p.title, "Table")}
           </div>
           <div className="portal-table-scroll w-full overflow-x-auto">
             <table className="w-max min-w-full text-left text-sm">
-              <thead className="bg-slate-50/80">
-                <tr>
+              <thead>
+                <tr
+                  style={{
+                    backgroundColor: isNight
+                      ? "rgba(255,255,255,0.04)"
+                      : "rgba(15,23,42,0.04)",
+                  }}
+                >
                   {columns.map((c) => (
                     <th
                       key={c}
-                      className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-600"
+                      className="whitespace-nowrap px-4 py-2.5 font-semibold"
+                      style={{ color: "var(--genui-muted)" }}
                     >
                       {c}
                     </th>
@@ -317,11 +447,16 @@ function NodeView({
               </thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <tr key={i} className="border-t border-slate-100">
+                  <tr
+                    key={i}
+                    className="border-t"
+                    style={{ borderColor: "var(--genui-border)" }}
+                  >
                     {columns.map((_, j) => (
                       <td
                         key={`${i}-${j}`}
-                        className="whitespace-nowrap px-4 py-2.5 text-slate-700"
+                        className="whitespace-nowrap px-4 py-2.5"
+                        style={{ color: "var(--genui-text)" }}
                       >
                         {row[j] || "—"}
                       </td>
@@ -336,14 +471,32 @@ function NodeView({
     }
     default:
       return (
-        <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="rounded-lg border border-dashed border-amber-300/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
           Unsupported node type (skipped): {String((node as UiNode).type)}
         </div>
       );
   }
 }
 
-/** Whitelist renderer — never evals model code. */
-export function UiSchemaRenderer({ schema }: { schema: UiSchema }) {
-  return <NodeView node={schema.root} style={schema.meta.style} />;
+/** Whitelist renderer — never evals model code. Palette splits bg / card / table. */
+export function UiSchemaRenderer({
+  schema,
+  palette,
+}: {
+  schema: UiSchema;
+  /** Optional live overrides from Workspace color pickers */
+  palette?: Partial<GenuiPalette>;
+}) {
+  const style = schema.meta.style;
+  const base = GENUI_PALETTE_DEFAULTS[style] || GENUI_PALETTE_DEFAULTS["modern-saas"];
+  const merged: GenuiPalette = { ...base, ...palette };
+  return (
+    <div style={paletteVars(merged)}>
+      <NodeView
+        node={schema.root}
+        style={style}
+        accent={merged.accent}
+      />
+    </div>
+  );
 }

@@ -11,8 +11,10 @@ import {
   Tablet,
 } from "lucide-react";
 import {
+  GENUI_PALETTE_DEFAULTS,
   GENUI_STYLE_LABELS,
   GENUI_STYLES,
+  type GenuiPalette,
   type GenuiStyle,
   type GenuiViewport,
 } from "@/config/genui";
@@ -29,11 +31,14 @@ import type {
 const OWNER_KEY = "glassportal-local";
 
 const SAMPLE_PROMPT =
-  "Create a modern SaaS analytics dashboard with a sidebar, KPI cards, revenue chart and recent transactions. Use a clean modern SaaS style.";
+  "Create a dark geek night-sky analytics dashboard with a sidebar, KPI cards, revenue chart and recent transactions.";
 
 export default function GenerativeUiWorkspacePage() {
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
-  const [style, setStyle] = useState<GenuiStyle>("modern-saas");
+  const [style, setStyle] = useState<GenuiStyle>("night-sky");
+  const [palette, setPalette] = useState<GenuiPalette>(
+    GENUI_PALETTE_DEFAULTS["night-sky"]
+  );
   const [viewport, setViewport] = useState<GenuiViewport>("desktop");
   const [intent, setIntent] = useState<DesignIntent | null>(null);
   const [intentSource, setIntentSource] = useState<string>("");
@@ -47,6 +52,11 @@ export default function GenerativeUiWorkspacePage() {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [tab, setTab] = useState<"preview" | "schema" | "intent">("preview");
+
+  const applyStyle = (next: GenuiStyle) => {
+    setStyle(next);
+    setPalette(GENUI_PALETTE_DEFAULTS[next]);
+  };
 
   const refreshHistory = async () => {
     try {
@@ -108,6 +118,10 @@ export default function GenerativeUiWorkspacePage() {
       setRun(json.run);
       setRevision(json.current);
       setSchema(json.current?.schema || null);
+      if (json.run?.style) {
+        setStyle(json.run.style);
+        setPalette(GENUI_PALETTE_DEFAULTS[json.run.style as GenuiStyle] || palette);
+      }
       setNote(json.meta?.note || "");
       setTab("preview");
       await refreshHistory();
@@ -132,6 +146,10 @@ export default function GenerativeUiWorkspacePage() {
       setIntent(json.run.intent);
       setPrompt(json.run.prompt);
       setStyle(json.run.style);
+      setPalette(
+        GENUI_PALETTE_DEFAULTS[json.run.style as GenuiStyle] ||
+          GENUI_PALETTE_DEFAULTS["modern-saas"]
+      );
       setTab("preview");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
@@ -142,6 +160,15 @@ export default function GenerativeUiWorkspacePage() {
     () => (schema ? JSON.stringify(schema, null, 2) : ""),
     [schema]
   );
+
+  /** Keep live style switch in sync with rendered theme (e.g. night-sky glow). */
+  const previewSchema = useMemo(() => {
+    if (!schema) return null;
+    return {
+      ...schema,
+      meta: { ...schema.meta, style },
+    };
+  }, [schema, style]);
 
   return (
     <main className="min-h-screen bg-[#F9FAFB] text-slate-900">
@@ -193,12 +220,12 @@ export default function GenerativeUiWorkspacePage() {
               <span className="text-xs font-medium text-slate-600">
                 Visual style
               </span>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {GENUI_STYLES.map((s) => (
                   <button
                     key={s}
                     type="button"
-                    onClick={() => setStyle(s)}
+                    onClick={() => applyStyle(s)}
                     className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition ${
                       style === s
                         ? "border-slate-900 bg-slate-900 text-white"
@@ -210,6 +237,54 @@ export default function GenerativeUiWorkspacePage() {
                 ))}
               </div>
             </label>
+
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">
+                  分层调色
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPalette(GENUI_PALETTE_DEFAULTS[style])}
+                  className="text-[10px] font-semibold text-slate-500 underline-offset-2 hover:underline"
+                >
+                  重置为风格默认
+                </button>
+              </div>
+              <p className="text-[10px] leading-relaxed text-slate-400">
+                背景 / 卡片 / 表格 可分开调，不互相绑死。
+              </p>
+              {(
+                [
+                  ["background", "背景 Background"],
+                  ["card", "卡片 Card"],
+                  ["table", "表格 Table"],
+                ] as const
+              ).map(([key, label]) => (
+                <label
+                  key={key}
+                  className="flex items-center justify-between gap-3 text-[11px] text-slate-600"
+                >
+                  <span>{label}</span>
+                  <span className="inline-flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={palette[key]}
+                      onChange={(e) =>
+                        setPalette((prev) => ({
+                          ...prev,
+                          [key]: e.target.value,
+                        }))
+                      }
+                      className="h-7 w-10 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
+                    />
+                    <code className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200">
+                      {palette[key]}
+                    </code>
+                  </span>
+                </label>
+              ))}
+            </div>
 
             <div className="flex flex-col gap-2">
               <button
@@ -361,9 +436,9 @@ export default function GenerativeUiWorkspacePage() {
 
           <GlassCard hover={false} className="overflow-hidden p-0">
             {tab === "preview" ? (
-              schema ? (
+              previewSchema ? (
                 <DeviceFrame viewport={viewport}>
-                  <UiSchemaRenderer schema={schema} />
+                  <UiSchemaRenderer schema={previewSchema} palette={palette} />
                 </DeviceFrame>
               ) : (
                 <div className="flex min-h-[420px] flex-col items-center justify-center gap-2 p-8 text-center">

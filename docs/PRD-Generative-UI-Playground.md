@@ -101,7 +101,8 @@
 
 - 根据解析结果调用 **服务端** LLM API（OpenAI-compatible）。  
 - **优先生成受约束的 UI Schema**，再渲染成 React；第一版不以「任意 React 源码执行」为主路径。  
-- 至少三种视觉风格：**Minimal / Modern SaaS / Editorial**。  
+- 至少三种视觉风格：**Minimal / Modern SaaS / Editorial**；并支持 **Night Sky（暗黑极客夜空）**。  
+- Workspace 可对 **背景 / 卡片 / 表格** 分层调色（互不绑死）。  
 - 支持常见布局与组件：侧栏、卡片、按钮、图表、表格等。  
 - 保存：原始 Prompt、解析结果、模型版本、生成结果（可追踪）。  
 

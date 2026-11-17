@@ -7,6 +7,8 @@ import type { DesignIntent } from "@/lib/genui/types";
 function detectStyle(prompt: string, forced?: GenuiStyle): GenuiStyle {
   if (forced && GENUI_STYLES.includes(forced)) return forced;
   const p = prompt.toLowerCase();
+  if (/night|dark|geek|cyber|neon|space|星空|暗黑|极客/.test(p))
+    return "night-sky";
   if (/editorial|magazine|serif|story|content site/.test(p)) return "editorial";
   if (/minimal|clean|simple|quiet|whitespace/.test(p)) return "minimal";
   return "modern-saas";

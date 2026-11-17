@@ -171,19 +171,28 @@ export function buildFixtureSchema(
     };
   }
 
-  // modern-saas dashboard-ish default
+  // modern-saas / night-sky dashboard fixture
+  const dashStyle = style === "night-sky" ? "night-sky" : "modern-saas";
   return {
     version: 1,
     meta: {
-      title: intent.pageType === "dashboard" ? "SaaS Analytics" : title,
+      title:
+        dashStyle === "night-sky"
+          ? "Night Ops Dashboard"
+          : intent.pageType === "dashboard"
+            ? "SaaS Analytics"
+            : title,
       pageType: intent.pageType,
-      style: "modern-saas",
-      description: "Modern SaaS fixture layout",
+      style: dashStyle,
+      description:
+        dashStyle === "night-sky"
+          ? "Dark geek / night-sky fixture"
+          : "Modern SaaS fixture layout",
     },
     root: {
       id: nid("page"),
       type: "page",
-      props: { theme: "modern-saas" },
+      props: { theme: dashStyle },
       children: [
         {
           id: nid("shell"),
@@ -197,7 +206,10 @@ export function buildFixtureSchema(
                 {
                   id: nid("brand"),
                   type: "heading",
-                  props: { text: "Northstar", level: 3 },
+                  props: {
+                    text: dashStyle === "night-sky" ? "Orion" : "Northstar",
+                    level: 3,
+                  },
                 },
                 {
                   id: nid("snav"),
@@ -216,7 +228,13 @@ export function buildFixtureSchema(
                 {
                   id: nid("h1"),
                   type: "heading",
-                  props: { text: "Revenue overview", level: 1 },
+                  props: {
+                    text:
+                      dashStyle === "night-sky"
+                        ? "Mission control"
+                        : "Revenue overview",
+                    level: 1,
+                  },
                 },
                 {
                   id: nid("kpis"),

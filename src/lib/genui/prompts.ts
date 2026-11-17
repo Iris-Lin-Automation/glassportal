@@ -5,10 +5,11 @@ export function intentSystemPrompt() {
   return `You are a Design Intent Parser for a Generative UI workbench.
 Extract a structured design brief from the user prompt.
 Return ONLY a JSON object with keys:
-pageType (string), style (one of: minimal | modern-saas | editorial),
+pageType (string), style (one of: minimal | modern-saas | editorial | night-sky),
 layout (string), components (string array), colorTone (string optional),
 responsive (string optional), audience (string optional), rawSummary (string).
-If style is unclear, default to "modern-saas".`;
+If style is unclear, default to "modern-saas".
+If user asks for dark / geek / night / cyber / neon, use style "night-sky".`;
 }
 
 export function generateSystemPrompt(style: GenuiStyle) {
@@ -45,6 +46,7 @@ Style "${style}" rules:
 - minimal: lots of whitespace, slate neutrals, thin borders, restrained type
 - modern-saas: indigo/sky accents, KPI row, clean cards, product UI density
 - editorial: serif-feeling headings via tracking, large title, story sections, fewer cards
+- night-sky: dark geek / night-sky dashboard feel — deep navy page, glassy dark cards, cyan accent, luminous KPI numbers, denser product UI. Prefer sidebar-layout + kpi-card + chart + table when building dashboards.
 
 Build a COMPLETE page matching the intent. Use unique string ids. Keep under 60 nodes.`;
 }
