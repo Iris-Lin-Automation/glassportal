@@ -66,3 +66,79 @@ Forced visual style: ${style}
 
 Generate the UiSchema JSON now.`;
 }
+
+export function critiqueSystemPrompt() {
+  return `You are a strict UI Design Reviewer for a schema-driven Generative UI system.
+Score the UI Schema on six dimensions from 1–10:
+layout, hierarchy, spacing, typography, color, completeness.
+
+Return ONLY JSON:
+{
+  "scores": { "layout": n, "hierarchy": n, "spacing": n, "typography": n, "color": n, "completeness": n },
+  "issues": [{ "dimension": "...", "severity": "low"|"medium"|"high", "message": "...", "suggestion": "..." }],
+  "summary": "one short paragraph",
+  "suggestRegenerate": boolean
+}
+
+Be concrete. Reference missing components, weak hierarchy, crowding, or style mismatch.
+Do not invent components outside the whitelist. Do not output markdown.`;
+}
+
+export function buildCritiqueUserPrompt(opts: {
+  prompt: string;
+  intent: DesignIntent;
+  schema: unknown;
+  ruleScores: unknown;
+  ruleIssues: unknown;
+}) {
+  return `User prompt:
+${opts.prompt}
+
+Design intent:
+${JSON.stringify(opts.intent, null, 2)}
+
+Rule-engine scores (deterministic baseline — refine, don't ignore):
+${JSON.stringify(opts.ruleScores, null, 2)}
+
+Rule-engine issues:
+${JSON.stringify(opts.ruleIssues, null, 2)}
+
+UI Schema to review:
+${JSON.stringify(opts.schema, null, 2).slice(0, 12000)}
+
+Return the critique JSON.`;
+}
+
+export function reviseSystemPrompt(style: GenuiStyle) {
+  return `${generateSystemPrompt(style)}
+
+You are now a Revision Agent. Improve the existing UiSchema using the critique.
+Keep the same page goal and style "${style}".
+Return a COMPLETE updated UiSchema JSON (not a patch).
+Address high/medium issues first. Preserve working sections when possible.`;
+}
+
+export function buildReviseUserPrompt(opts: {
+  prompt: string;
+  intent: DesignIntent;
+  schema: unknown;
+  critique: unknown;
+  notes?: string;
+}) {
+  return `Original user prompt:
+${opts.prompt}
+
+Design intent:
+${JSON.stringify(opts.intent, null, 2)}
+
+Current UiSchema:
+${JSON.stringify(opts.schema, null, 2).slice(0, 12000)}
+
+Critique to address:
+${JSON.stringify(opts.critique, null, 2).slice(0, 6000)}
+
+Extra revision notes from user:
+${opts.notes?.trim() || "(none)"}
+
+Output the improved UiSchema JSON now.`;
+}

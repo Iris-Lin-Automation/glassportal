@@ -72,6 +72,37 @@ export type GenerationRun = {
   error?: string;
 };
 
+export type CritiqueDimension =
+  | "layout"
+  | "hierarchy"
+  | "spacing"
+  | "typography"
+  | "color"
+  | "completeness";
+
+export type CritiqueIssue = {
+  dimension: CritiqueDimension;
+  severity: "low" | "medium" | "high";
+  message: string;
+  suggestion: string;
+};
+
+export type CritiqueScores = Record<CritiqueDimension, number>;
+
+export type CritiqueResult = {
+  id: string;
+  revisionId: string;
+  createdAt: string;
+  /** Honest provenance — never fake scores */
+  source: "rules" | "rules+llm";
+  overall: number;
+  scores: CritiqueScores;
+  issues: CritiqueIssue[];
+  summary: string;
+  suggestRegenerate: boolean;
+  model?: string;
+};
+
 export type RevisionRecord = {
   id: string;
   runId: string;
@@ -83,6 +114,8 @@ export type RevisionRecord = {
   schema: UiSchema;
   rawModelOutputHash?: string;
   tokenUsage?: { input: number; output: number };
+  critique?: CritiqueResult;
+  revisionNotes?: string;
   error?: string;
 };
 

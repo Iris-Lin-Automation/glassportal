@@ -21,6 +21,7 @@ import {
   type GenuiStyle,
   type GenuiViewport,
 } from "@/config/genui";
+import { CritiquePanel } from "@/components/genui/CritiquePanel";
 import { PreviewStage } from "@/components/genui/PreviewStage";
 import { StylePicker } from "@/components/genui/StylePicker";
 import { SurfaceColors } from "@/components/genui/SurfaceColors";
@@ -49,17 +50,32 @@ export default function GenerativeUiWorkspacePage() {
   const [schema, setSchema] = useState<UiSchema | null>(null);
   const [run, setRun] = useState<GenerationRun | null>(null);
   const [revision, setRevision] = useState<RevisionRecord | null>(null);
+  const [revisions, setRevisions] = useState<RevisionRecord[]>([]);
   const [history, setHistory] = useState<GenerationRun[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [busy, setBusy] = useState<"intent" | "generate" | "fixture" | null>(
-    null
-  );
+  const [busy, setBusy] = useState<
+    "intent" | "generate" | "fixture" | "critique" | "revise" | null
+  >(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
-  const [tab, setTab] = useState<"preview" | "schema" | "intent">("preview");
+  const [tab, setTab] = useState<
+    "preview" | "schema" | "intent" | "critique"
+  >("preview");
   const historyRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
+
+  const applyDetail = (json: {
+    run: GenerationRun;
+    current?: RevisionRecord | null;
+    revisions?: RevisionRecord[];
+  }) => {
+    setRun(json.run);
+    setRevision(json.current || null);
+    setRevisions(json.revisions || []);
+    setSchema(json.current?.schema || null);
+    setIntent(json.run.intent);
+  };
 
   const applyStyle = (next: GenuiStyle) => {
     setStyle(next);
@@ -96,11 +112,8 @@ export default function GenerativeUiWorkspacePage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Generate failed");
-      setIntent(json.run.intent);
       setIntentSource(json.intentSource || "");
-      setRun(json.run);
-      setRevision(json.current);
-      setSchema(json.current?.schema || null);
+      applyDetail(json);
       if (json.run?.style) {
         setStyle(json.run.style);
         setPalette(
@@ -115,6 +128,59 @@ export default function GenerativeUiWorkspacePage() {
       await refreshHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generate failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onCritique = async () => {
+    if (!revision) return;
+    setError("");
+    setBusy("critique");
+    try {
+      const res = await fetch("/api/genui/critique", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revisionId: revision.id,
+          rulesOnly: run?.model.mode === "fixture",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Critique failed");
+      applyDetail(json);
+      setNote(json.meta?.note || "");
+      setTab("critique");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Critique failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onRevise = async () => {
+    if (!revision) return;
+    setError("");
+    setBusy("revise");
+    try {
+      const res = await fetch("/api/genui/revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revisionId: revision.id,
+          local: run?.model.mode === "fixture",
+          critiqueAfter: true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Revise failed");
+      applyDetail(json);
+      setNote(json.meta?.note || "");
+      setTab("critique");
+      setPanelOpen(false);
+      await refreshHistory();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Revise failed");
     } finally {
       setBusy(null);
     }
@@ -172,10 +238,7 @@ export default function GenerativeUiWorkspacePage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Load failed");
-      setRun(json.run);
-      setRevision(json.current);
-      setSchema(json.current?.schema || null);
-      setIntent(json.run.intent);
+      applyDetail(json);
       setPrompt(json.run.prompt);
       setStyle(json.run.style);
       setPalette(
@@ -200,6 +263,13 @@ export default function GenerativeUiWorkspacePage() {
     if (!schema) return null;
     return { ...schema, meta: { ...schema.meta, style } };
   }, [schema, style]);
+
+  const previousRevision = useMemo(() => {
+    if (!revision?.parentRevisionId) return null;
+    return (
+      revisions.find((r) => r.id === revision.parentRevisionId) || null
+    );
+  }, [revision, revisions]);
 
   const immersive =
     !panelOpen && tab === "preview" && !!previewSchema && viewport === "desktop";
@@ -482,6 +552,7 @@ export default function GenerativeUiWorkspacePage() {
                 {(
                   [
                     ["preview", "Preview"],
+                    ["critique", "Critique"],
                     ["schema", "Schema"],
                     ["intent", "Intent"],
                   ] as const
@@ -525,6 +596,22 @@ export default function GenerativeUiWorkspacePage() {
                   Write a prompt, then Generate
                 </div>
               )
+            ) : null}
+
+            {tab === "critique" ? (
+              <div className="h-full pt-9">
+                <CritiquePanel
+                  critique={revision?.critique || null}
+                  previousCritique={previousRevision?.critique || null}
+                  revision={revision}
+                  previousRevision={previousRevision}
+                  busy={
+                    busy === "critique" || busy === "revise" ? busy : null
+                  }
+                  onCritique={() => void onCritique()}
+                  onRevise={() => void onRevise()}
+                />
+              </div>
             ) : null}
 
             {tab === "schema" ? (

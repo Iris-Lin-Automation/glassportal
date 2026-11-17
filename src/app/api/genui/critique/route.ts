@@ -1,0 +1,70 @@
+import { NextRequest, NextResponse } from "next/server";
+import { critiqueUiSchema } from "@/lib/genui/critique";
+import {
+  attachCritiqueToRevision,
+  loadRevision,
+  loadRun,
+} from "@/lib/genui/stores/run-store";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as {
+      revisionId?: string;
+      /** Force rules-only (honest local path) */
+      rulesOnly?: boolean;
+    };
+
+    const revisionId = (body.revisionId || "").trim();
+    if (!revisionId) {
+      return NextResponse.json(
+        { error: "revisionId is required" },
+        { status: 400 }
+      );
+    }
+
+    const rev = await loadRevision(revisionId);
+    if (!rev) {
+      return NextResponse.json({ error: "Revision not found" }, { status: 404 });
+    }
+    const run = await loadRun(rev.runId);
+    if (!run) {
+      return NextResponse.json({ error: "Run not found" }, { status: 404 });
+    }
+
+    const critique = await critiqueUiSchema({
+      schema: rev.schema,
+      intent: rev.intentSnapshot,
+      prompt: rev.promptSnapshot || run.prompt,
+      revisionId: rev.id,
+      allowLlm: !body.rulesOnly && run.model.mode !== "fixture",
+    });
+
+    // Fixture / rulesOnly → still real rules scores (never fake)
+    if (body.rulesOnly || run.model.mode === "fixture") {
+      critique.source = "rules";
+      delete critique.model;
+    }
+
+    const detail = await attachCritiqueToRevision(rev.id, critique, "evaluated");
+    return NextResponse.json({
+      critique,
+      ...detail,
+      meta: {
+        source: critique.source,
+        note:
+          critique.source === "rules"
+            ? "Deterministic rule critique (no LLM scores fabricated)."
+            : "Merged rule + live LLM critique.",
+      },
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Critique failed" },
+      { status: 500 }
+    );
+  }
+}
