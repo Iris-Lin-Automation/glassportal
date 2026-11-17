@@ -22,11 +22,41 @@ function cloneNode(node: UiNode): UiNode {
   };
 }
 
+function applyLocalHumanNotes(root: UiNode, notes: string) {
+  const rename =
+    notes.match(/rename(?:\s+title)?\s+to\s+[“"']?([^”"'\n.]+)[”"']?/i) ||
+    notes.match(/title\s+say\s+[“"']?([^”"'\n.]+)[”"']?/i);
+  const targetTitle = rename?.[1]?.trim();
+  if (!targetTitle) return root;
+
+  const walk = (n: UiNode): UiNode => {
+    const next: UiNode = {
+      ...n,
+      children: n.children?.map(walk),
+    };
+    if (
+      (n.type === "chart" || n.type === "table" || n.type === "heading") &&
+      notes.toLowerCase().includes(String(n.props?.title || n.props?.text || "").toLowerCase().slice(0, 12) || "___never___")
+    ) {
+      if (n.type === "heading") {
+        next.props = { ...n.props, text: targetTitle };
+      } else {
+        next.props = { ...n.props, title: targetTitle };
+      }
+    } else if (n.type === "chart" && /chart/i.test(notes)) {
+      next.props = { ...n.props, title: targetTitle };
+    }
+    return next;
+  };
+  return walk(root);
+}
+
 /** Local deterministic revise when LLM unavailable / fixture mode */
 export function reviseSchemaLocally(
   schema: UiSchema,
   critique: CritiqueResult,
-  intent: DesignIntent
+  intent: DesignIntent,
+  humanNotes?: string
 ): UiSchema {
   const next: UiSchema = {
     version: 1,
@@ -39,6 +69,10 @@ export function reviseSchemaLocally(
     },
     root: cloneNode(schema.root),
   };
+
+  if (humanNotes?.trim()) {
+    next.root = applyLocalHumanNotes(next.root, humanNotes);
+  }
 
   const highCompleteness = critique.issues.some(
     (i) => i.dimension === "completeness" && i.severity !== "low"
@@ -160,7 +194,12 @@ export async function reviseUiSchema(opts: {
         "OPENAI_API_KEY is not configured. Use local revise for fixture runs, or add a server key."
       );
     }
-    const schema = reviseSchemaLocally(opts.schema, opts.critique, opts.intent);
+    const schema = reviseSchemaLocally(
+      opts.schema,
+      opts.critique,
+      opts.intent,
+      notes
+    );
     const raw = JSON.stringify(schema);
     return {
       schema,

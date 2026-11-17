@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { createContext, useContext, type CSSProperties } from "react";
 import {
   Line,
   LineChart,
@@ -19,6 +19,29 @@ import {
 } from "@/config/genui";
 import type { UiNode, UiSchema } from "@/lib/genui/types";
 import { cn } from "@/lib/utils";
+
+export type GenuiAnnotateTarget = {
+  nodeId: string;
+  nodeType: string;
+  label: string;
+};
+
+type AnnotateContextValue = {
+  enabled: boolean;
+  onPick: (target: GenuiAnnotateTarget) => void;
+};
+
+const GenuiAnnotateContext = createContext<AnnotateContextValue | null>(null);
+
+function nodeLabel(node: UiNode) {
+  const p = node.props || {};
+  const text =
+    (typeof p.text === "string" && p.text) ||
+    (typeof p.title === "string" && p.title) ||
+    (typeof p.label === "string" && p.label) ||
+    "";
+  return text ? `${node.type}: ${text.slice(0, 40)}` : node.type;
+}
 
 function gapClass(gap?: unknown) {
   if (gap === "sm") return "gap-2";
@@ -63,7 +86,7 @@ function nightSkyBackground(style: GenuiStyle): CSSProperties | undefined {
   };
 }
 
-function NodeView({
+function NodeBody({
   node,
   style,
   accent,
@@ -541,37 +564,88 @@ function NodeView({
   }
 }
 
+function NodeView(props: {
+  node: UiNode;
+  style: GenuiStyle;
+  accent: string;
+  viewport: GenuiViewport;
+}) {
+  const annotate = useContext(GenuiAnnotateContext);
+  const label = nodeLabel(props.node);
+  const enabled = Boolean(annotate?.enabled);
+
+  return (
+    <div
+      data-genui-id={props.node.id}
+      data-genui-type={props.node.type}
+      data-genui-label={label}
+      className={cn(
+        enabled
+          ? "relative cursor-crosshair rounded-sm outline outline-1 outline-transparent transition hover:outline-cyan-400/90 hover:outline-offset-1"
+          : "contents"
+      )}
+      onClick={
+        enabled
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              annotate?.onPick({
+                nodeId: props.node.id,
+                nodeType: props.node.type,
+                label,
+              });
+            }
+          : undefined
+      }
+    >
+      <NodeBody {...props} />
+    </div>
+  );
+}
+
 /** Whitelist renderer — never evals model code. Palette splits bg / card / table. */
 export function UiSchemaRenderer({
   schema,
   palette,
   viewport = "desktop",
+  annotateEnabled = false,
+  onAnnotatePick,
 }: {
   schema: UiSchema;
   /** Optional live overrides from Workspace color pickers */
   palette?: Partial<GenuiPalette>;
   /** Preview device density — drives layout, not browser CSS breakpoints */
   viewport?: GenuiViewport;
+  /** Human-in-the-loop: click blocks to pin feedback */
+  annotateEnabled?: boolean;
+  onAnnotatePick?: (target: GenuiAnnotateTarget) => void;
 }) {
   const style = schema.meta.style;
   const base = GENUI_PALETTE_DEFAULTS[style] || GENUI_PALETTE_DEFAULTS["modern-saas"];
   const merged: GenuiPalette = { ...base, ...palette };
+  const annotateValue: AnnotateContextValue | null =
+    annotateEnabled && onAnnotatePick
+      ? { enabled: true, onPick: onAnnotatePick }
+      : null;
+
   return (
-    <div
-      className="flex min-h-full w-full flex-1 flex-col"
-      style={{
-        ...paletteVars(merged),
-        backgroundColor: merged.background,
-      }}
-    >
-      <div className="flex min-h-full w-full flex-1 flex-col [&>*]:min-h-full [&>*]:flex-1">
-        <NodeView
-          node={schema.root}
-          style={style}
-          accent={merged.accent}
-          viewport={viewport}
-        />
+    <GenuiAnnotateContext.Provider value={annotateValue}>
+      <div
+        className="flex min-h-full w-full flex-1 flex-col"
+        style={{
+          ...paletteVars(merged),
+          backgroundColor: merged.background,
+        }}
+      >
+        <div className="flex min-h-full w-full flex-1 flex-col [&>*]:min-h-full [&>*]:flex-1">
+          <NodeView
+            node={schema.root}
+            style={style}
+            accent={merged.accent}
+            viewport={viewport}
+          />
+        </div>
       </div>
-    </div>
+    </GenuiAnnotateContext.Provider>
   );
 }

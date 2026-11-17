@@ -112,10 +112,15 @@ Return the critique JSON.`;
 export function reviseSystemPrompt(style: GenuiStyle) {
   return `${generateSystemPrompt(style)}
 
-You are now a Revision Agent. Improve the existing UiSchema using the critique.
+You are now a Revision Agent. Improve the existing UiSchema using the critique
+AND any human feedback notes.
 Keep the same page goal and style "${style}".
 Return a COMPLETE updated UiSchema JSON (not a patch).
-Address high/medium issues first. Preserve working sections when possible.`;
+Priority order:
+1) Human freeform direction and pinned block notes (must follow)
+2) High/medium critique issues
+3) Preserve working sections when possible.
+When a note targets a node id/type, change that block specifically.`;
 }
 
 export function buildReviseUserPrompt(opts: {

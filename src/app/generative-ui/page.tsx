@@ -21,17 +21,24 @@ import {
   type GenuiStyle,
   type GenuiViewport,
 } from "@/config/genui";
-import { CritiquePanel } from "@/components/genui/CritiquePanel";
+import {
+  CritiquePanel,
+  type HumanPin,
+} from "@/components/genui/CritiquePanel";
 import { PreviewStage } from "@/components/genui/PreviewStage";
 import { StylePicker } from "@/components/genui/StylePicker";
 import { SurfaceColors } from "@/components/genui/SurfaceColors";
-import { UiSchemaRenderer } from "@/components/genui/UiSchemaRenderer";
+import {
+  UiSchemaRenderer,
+  type GenuiAnnotateTarget,
+} from "@/components/genui/UiSchemaRenderer";
 import type {
   DesignIntent,
   GenerationRun,
   RevisionRecord,
   UiSchema,
 } from "@/lib/genui/types";
+import { makeId } from "@/lib/genui/ids";
 
 const OWNER_KEY = "glassportal-local";
 
@@ -62,6 +69,12 @@ export default function GenerativeUiWorkspacePage() {
   const [tab, setTab] = useState<
     "preview" | "schema" | "intent" | "critique"
   >("preview");
+  const [humanNotes, setHumanNotes] = useState("");
+  const [pins, setPins] = useState<HumanPin[]>([]);
+  const [annotateMode, setAnnotateMode] = useState(false);
+  const [pendingTarget, setPendingTarget] =
+    useState<GenuiAnnotateTarget | null>(null);
+  const [pendingNote, setPendingNote] = useState("");
   const historyRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
@@ -158,16 +171,37 @@ export default function GenerativeUiWorkspacePage() {
     }
   };
 
+  const buildHumanRevisionNotes = () => {
+    const lines: string[] = [];
+    if (humanNotes.trim()) {
+      lines.push("Human freeform direction:");
+      lines.push(humanNotes.trim());
+    }
+    const usefulPins = pins.filter((p) => p.note.trim());
+    if (usefulPins.length) {
+      lines.push("");
+      lines.push("Human pinned notes on UI blocks:");
+      for (const p of usefulPins) {
+        lines.push(
+          `- [${p.nodeType} id=${p.nodeId}] ${p.label}: ${p.note.trim()}`
+        );
+      }
+    }
+    return lines.join("\n").trim();
+  };
+
   const onRevise = async () => {
     if (!revision) return;
     setError("");
     setBusy("revise");
     try {
+      const notes = buildHumanRevisionNotes();
       const res = await fetch("/api/genui/revise", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           revisionId: revision.id,
+          notes: notes || undefined,
           local: run?.model.mode === "fixture",
           critiqueAfter: true,
         }),
@@ -176,6 +210,11 @@ export default function GenerativeUiWorkspacePage() {
       if (!res.ok) throw new Error(json.error || "Revise failed");
       applyDetail(json);
       setNote(json.meta?.note || "");
+      setHumanNotes("");
+      setPins([]);
+      setPendingTarget(null);
+      setPendingNote("");
+      setAnnotateMode(false);
       setTab("critique");
       setPanelOpen(false);
       await refreshHistory();
@@ -184,6 +223,12 @@ export default function GenerativeUiWorkspacePage() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const onAnnotatePick = (target: GenuiAnnotateTarget) => {
+    setPendingTarget(target);
+    setPendingNote("");
+    setAnnotateMode(true);
   };
 
   useEffect(() => {
@@ -599,18 +644,84 @@ export default function GenerativeUiWorkspacePage() {
             ) : null}
 
             {tab === "critique" ? (
-              <div className="h-full pt-9">
-                <CritiquePanel
-                  critique={revision?.critique || null}
-                  previousCritique={previousRevision?.critique || null}
-                  revision={revision}
-                  previousRevision={previousRevision}
-                  busy={
-                    busy === "critique" || busy === "revise" ? busy : null
-                  }
-                  onCritique={() => void onCritique()}
-                  onRevise={() => void onRevise()}
-                />
+              <div className="flex h-full min-h-0 pt-9">
+                <div className="relative min-h-0 min-w-0 flex-[1.15] border-r border-slate-200 bg-slate-100">
+                  {annotateMode ? (
+                    <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full bg-cyan-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow">
+                      Click a block to mark
+                    </div>
+                  ) : null}
+                  {previewSchema ? (
+                    <PreviewStage
+                      viewport={viewport === "desktop" ? "desktop" : viewport}
+                      className="h-full w-full"
+                    >
+                      <UiSchemaRenderer
+                        schema={previewSchema}
+                        palette={palette}
+                        viewport={
+                          viewport === "desktop" ? "desktop" : viewport
+                        }
+                        annotateEnabled={annotateMode || !!pendingTarget}
+                        onAnnotatePick={onAnnotatePick}
+                      />
+                    </PreviewStage>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                      Generate a UI first
+                    </div>
+                  )}
+                </div>
+                <div className="min-h-0 w-[min(380px,42%)] shrink-0">
+                  <CritiquePanel
+                    critique={revision?.critique || null}
+                    previousCritique={previousRevision?.critique || null}
+                    revision={revision}
+                    previousRevision={previousRevision}
+                    busy={
+                      busy === "critique" || busy === "revise" ? busy : null
+                    }
+                    humanNotes={humanNotes}
+                    onHumanNotesChange={setHumanNotes}
+                    pins={pins}
+                    onRemovePin={(id) =>
+                      setPins((prev) => prev.filter((p) => p.id !== id))
+                    }
+                    onUpdatePin={(id, note) =>
+                      setPins((prev) =>
+                        prev.map((p) => (p.id === id ? { ...p, note } : p))
+                      )
+                    }
+                    annotateMode={annotateMode}
+                    onToggleAnnotate={() => {
+                      setAnnotateMode((v) => !v);
+                      setPendingTarget(null);
+                      setPendingNote("");
+                    }}
+                    pendingTarget={pendingTarget}
+                    pendingNote={pendingNote}
+                    onPendingNoteChange={setPendingNote}
+                    onConfirmPending={() => {
+                      if (!pendingTarget || !pendingNote.trim()) return;
+                      setPins((prev) => [
+                        ...prev,
+                        {
+                          id: makeId("pin"),
+                          ...pendingTarget,
+                          note: pendingNote.trim(),
+                        },
+                      ]);
+                      setPendingTarget(null);
+                      setPendingNote("");
+                    }}
+                    onCancelPending={() => {
+                      setPendingTarget(null);
+                      setPendingNote("");
+                    }}
+                    onCritique={() => void onCritique()}
+                    onRevise={() => void onRevise()}
+                  />
+                </div>
               </div>
             ) : null}
 
