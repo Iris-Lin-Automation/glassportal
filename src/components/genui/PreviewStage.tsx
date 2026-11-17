@@ -14,8 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Full-bleed preview: renders at device width, then scales to FIT the
- * available stage so users see the whole UI without nested scrolling.
+ * Full-bleed preview: artboard scales to fill the stage (contain),
+ * so the generated UI is visible at a glance without nested scrolling.
  */
 export function PreviewStage({
   viewport,
@@ -27,24 +27,31 @@ export function PreviewStage({
   className?: string;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const artboardRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [contentH, setContentH] = useState(600);
+  const [natural, setNatural] = useState({ w: 1200, h: 800 });
   const artboardW = GENUI_VIEWPORT_SIZE[viewport].width;
 
   const measure = () => {
     const stage = stageRef.current;
-    const content = contentRef.current;
-    if (!stage || !content) return;
+    const board = artboardRef.current;
+    if (!stage || !board) return;
 
-    const pad = 24;
-    const availW = Math.max(stage.clientWidth - pad * 2, 120);
-    const availH = Math.max(stage.clientHeight - pad * 2, 120);
-    const naturalH = Math.max(content.scrollHeight, 400);
-    setContentH(naturalH);
+    // Temporarily unscale to read true layout size
+    const prev = board.style.transform;
+    board.style.transform = "scale(1)";
+    const natW = artboardW;
+    const natH = Math.max(board.scrollHeight, board.offsetHeight, 480);
+    board.style.transform = prev;
 
-    const s = Math.min(availW / artboardW, availH / naturalH, 1);
-    setScale(Number.isFinite(s) && s > 0 ? s : 1);
+    const pad = 8;
+    const availW = Math.max(stage.clientWidth - pad * 2, 80);
+    const availH = Math.max(stage.clientHeight - pad * 2, 80);
+    const next = Math.min(availW / natW, availH / natH);
+    const s = Number.isFinite(next) && next > 0 ? next : 1;
+
+    setNatural({ w: natW, h: natH });
+    setScale(s);
   };
 
   useLayoutEffect(() => {
@@ -54,25 +61,23 @@ export function PreviewStage({
 
   useEffect(() => {
     const stage = stageRef.current;
-    const content = contentRef.current;
-    if (!stage) return;
+    const board = artboardRef.current;
+    if (!stage || !board) return;
 
     const ro = new ResizeObserver(() => measure());
     ro.observe(stage);
-    if (content) ro.observe(content);
+    ro.observe(board);
 
-    const t = window.setTimeout(measure, 80);
-    const t2 = window.setTimeout(measure, 320);
+    // Charts / fonts settle after first paint
+    const timers = [50, 150, 400, 900, 1600].map((ms) =>
+      window.setTimeout(measure, ms)
+    );
     return () => {
       ro.disconnect();
-      window.clearTimeout(t);
-      window.clearTimeout(t2);
+      timers.forEach((t) => window.clearTimeout(t));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewport, children]);
-
-  const scaledW = artboardW * scale;
-  const scaledH = contentH * scale;
 
   return (
     <div
@@ -83,25 +88,27 @@ export function PreviewStage({
       )}
     >
       <div
-        className="relative shrink-0 transition-[width,height] duration-300 ease-out"
-        style={{ width: scaledW, height: scaledH }}
+        className="relative shrink-0"
+        style={{
+          width: natural.w * scale,
+          height: natural.h * scale,
+        }}
       >
         <div
-          className="absolute left-0 top-0 origin-top-left overflow-hidden rounded-xl border border-slate-700/40 bg-white shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
+          ref={artboardRef}
+          className="absolute left-0 top-0 origin-top-left overflow-visible rounded-lg border border-white/10 bg-[#0B0F17] shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
           style={{
             width: artboardW,
             transform: `scale(${scale})`,
           }}
         >
-          <div className="flex items-center gap-1.5 border-b border-black/5 bg-slate-100/90 px-2.5 py-1">
-            <span className="h-2 w-2 rounded-full bg-[#FF5F57]" />
-            <span className="h-2 w-2 rounded-full bg-[#FEBC2E]" />
-            <span className="h-2 w-2 rounded-full bg-[#28C840]" />
-            <span className="ml-1.5 text-[9px] font-medium uppercase tracking-wide text-slate-400">
-              {GENUI_VIEWPORT_SIZE[viewport].label} · fit {Math.round(scale * 100)}%
+          <div className="pointer-events-none absolute left-2 top-1.5 z-10 flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+            <span className="text-[8px] font-medium uppercase tracking-wider text-white/30">
+              {GENUI_VIEWPORT_SIZE[viewport].label} · {Math.round(scale * 100)}%
             </span>
           </div>
-          <div ref={contentRef}>{children}</div>
+          {children}
         </div>
       </div>
     </div>

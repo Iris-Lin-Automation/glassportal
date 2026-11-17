@@ -419,37 +419,33 @@ export default function GenerativeUiWorkspacePage() {
 
         {/* RIGHT — full stage */}
         <section className="relative z-0 flex min-w-0 flex-1 flex-col bg-[#0B0F17]">
-          <div className="flex h-8 shrink-0 items-center justify-between border-b border-white/5 px-2">
-            <div className="flex gap-0.5 rounded border border-white/10 p-0.5">
-              {(
-                [
-                  ["preview", "Preview"],
-                  ["schema", "Schema"],
-                  ["intent", "Intent"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setTab(id)}
-                  className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
-                    tab === id
-                      ? "bg-white text-slate-900"
-                      : "text-slate-400 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-slate-500">
-              {previewSchema
-                ? `${GENUI_STYLE_LABELS[style]} · fit to screen`
-                : "Generating…"}
-            </p>
-          </div>
-
           <div className="relative min-h-0 flex-1">
+            {/* Floating tabs — no dedicated chrome strip eating vertical space */}
+            <div className="absolute right-3 top-2 z-20 flex items-center gap-1.5">
+              <div className="flex gap-0.5 rounded-md border border-white/10 bg-[#111827]/90 p-0.5 backdrop-blur">
+                {(
+                  [
+                    ["preview", "Preview"],
+                    ["schema", "Schema"],
+                    ["intent", "Intent"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setTab(id)}
+                    className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
+                      tab === id
+                        ? "bg-white text-slate-900"
+                        : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {tab === "preview" ? (
               busy && !previewSchema ? (
                 <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-400">
@@ -457,7 +453,7 @@ export default function GenerativeUiWorkspacePage() {
                   Rendering…
                 </div>
               ) : previewSchema ? (
-                <PreviewStage viewport={viewport} className="h-full w-full">
+                <PreviewStage viewport={viewport} className="h-full w-full p-1">
                   <UiSchemaRenderer
                     schema={previewSchema}
                     palette={palette}
@@ -471,20 +467,19 @@ export default function GenerativeUiWorkspacePage() {
             ) : null}
 
             {tab === "schema" ? (
-              <pre className="m-0 h-full overflow-auto bg-[#0B0F17] p-4 text-[11px] leading-relaxed text-slate-300">
+              <pre className="m-0 h-full overflow-auto bg-[#0B0F17] p-4 pt-10 text-[11px] leading-relaxed text-slate-300">
                 {schemaText || "// Schema appears after generate"}
               </pre>
             ) : null}
 
             {tab === "intent" ? (
-              <pre className="m-0 h-full overflow-auto bg-[#0B0F17] p-4 text-[11px] leading-relaxed text-slate-300">
+              <pre className="m-0 h-full overflow-auto bg-[#0B0F17] p-4 pt-10 text-[11px] leading-relaxed text-slate-300">
                 {intent
                   ? `${intentSource ? `// source: ${intentSource}\n` : ""}${JSON.stringify(intent, null, 2)}`
                   : "// Intent appears after parse / generate"}
               </pre>
             ) : null}
 
-            {/* Floating reopen when collapsed */}
             {!panelOpen ? (
               <button
                 type="button"
