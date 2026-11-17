@@ -83,6 +83,7 @@ export default function GenerativeUiWorkspacePage() {
   const [feedbackCollapsed, setFeedbackCollapsed] = useState(false);
   const [markStrokes, setMarkStrokes] = useState<MarkStroke[]>([]);
   const [lastChangelog, setLastChangelog] = useState<string[]>([]);
+  const [previewFlash, setPreviewFlash] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
@@ -228,9 +229,8 @@ export default function GenerativeUiWorkspacePage() {
       if (json.palettePatch) {
         setPalette((prev) => ({ ...prev, ...json.palettePatch }));
       }
-      setLastChangelog(
-        Array.isArray(json.changelog) ? json.changelog : []
-      );
+      const log = Array.isArray(json.changelog) ? json.changelog : [];
+      setLastChangelog(log);
       setNote(json.meta?.note || "");
       setHumanNotes("");
       setPins([]);
@@ -241,6 +241,14 @@ export default function GenerativeUiWorkspacePage() {
       setFeedbackCollapsed(false);
       setTab("critique");
       setPanelOpen(false);
+      // Flash when something actually changed in the schema/preview
+      const noop = log.every((c: string) =>
+        /already matched|re-score should/i.test(c)
+      );
+      if (!noop) {
+        setPreviewFlash(true);
+        window.setTimeout(() => setPreviewFlash(false), 1600);
+      }
       await refreshHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Revise failed");
@@ -694,8 +702,19 @@ export default function GenerativeUiWorkspacePage() {
                     Drag to circle an area
                   </div>
                 ) : null}
+                {previewFlash ? (
+                  <div className="pointer-events-none absolute left-1/2 top-12 z-30 -translate-x-1/2 rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg">
+                    Preview updated — look for new blocks
+                  </div>
+                ) : null}
                 {previewSchema ? (
-                  <div className="relative h-full w-full">
+                  <div
+                    className={`relative h-full w-full transition ring-0 ${
+                      previewFlash
+                        ? "ring-2 ring-emerald-400/80 ring-offset-2 ring-offset-transparent"
+                        : ""
+                    }`}
+                  >
                     <PreviewStage viewport={viewport} className="h-full w-full">
                       <UiSchemaRenderer
                         schema={previewSchema}

@@ -88,11 +88,11 @@ export function CritiquePanel({
   lastChangelog?: string[];
 }) {
   const [showAuto, setShowAuto] = useState(false);
-  const canRevise =
-    !!revision &&
-    (Boolean(humanNotes.trim()) ||
-      pins.some((p) => p.note.trim()) ||
-      !!critique);
+  const hasHumanAsk =
+    Boolean(humanNotes.trim()) || pins.some((p) => p.note.trim());
+  const hasAutoIssues = Boolean(critique && critique.issues.length > 0);
+  // Only enable Fix when there is something actionable to change
+  const canRevise = !!revision && (hasHumanAsk || hasAutoIssues);
   const pinCount = pins.length;
 
   if (collapsed) {
@@ -183,15 +183,24 @@ export function CritiquePanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
-        <p className="rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-relaxed text-slate-500">
-          <span className="font-semibold text-slate-700">How it works: </span>
-          Critique scores → Fix auto-applies those issues. Or Mark + type your
-          own ask, then Fix. History keeps each version’s score.
-        </p>
+        {!canRevise && critique && critique.issues.length === 0 ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] leading-relaxed text-amber-900">
+            No auto issues left — Fix won&apos;t change the preview. Use{" "}
+            <span className="font-semibold">Mark</span>, circle something, type
+            e.g. “make title bigger / change this color”, then Fix.
+          </p>
+        ) : (
+          <p className="rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-relaxed text-slate-500">
+            <span className="font-semibold text-slate-700">Try this: </span>
+            {hasAutoIssues
+              ? "Issues found — click Fix and watch the preview change."
+              : "Mark → circle → type what to change → Fix."}
+          </p>
+        )}
 
         {lastChangelog && lastChangelog.length > 0 ? (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] text-emerald-900">
-            <p className="font-semibold">Last fix</p>
+            <p className="font-semibold">Last fix (look at the preview)</p>
             <ul className="mt-0.5 list-disc pl-3">
               {lastChangelog.map((c) => (
                 <li key={c}>{c}</li>

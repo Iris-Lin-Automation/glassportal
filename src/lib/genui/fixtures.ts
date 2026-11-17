@@ -186,8 +186,8 @@ export function buildFixtureSchema(
       style: dashStyle,
       description:
         dashStyle === "night-sky"
-          ? "Dark geek / night-sky fixture"
-          : "Modern SaaS fixture layout",
+          ? "Dark geek / night-sky fixture (incomplete on purpose for Fix demo)"
+          : "Modern SaaS fixture (incomplete on purpose for Fix demo)",
     },
     root: {
       id: nid("page"),
@@ -279,19 +279,8 @@ export function buildFixtureSchema(
                     points: [12, 18, 15, 22, 28, 26, 34],
                   },
                 },
-                {
-                  id: nid("table"),
-                  type: "table",
-                  props: {
-                    title: "Recent Transactions",
-                    columns: ["Customer", "Plan", "Amount", "Status"],
-                    rows: [
-                      ["Acme Corp", "Pro", "$190", "Paid"],
-                      ["Globex", "Agency", "$490", "Paid"],
-                      ["Initech", "Starter", "$0", "Trial"],
-                    ],
-                  },
-                },
+                // Intentionally omit Recent Transactions table so Critique → Fix
+                // has a visible improvement (table appears after revise).
               ],
             },
           ],
