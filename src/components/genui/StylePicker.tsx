@@ -34,8 +34,8 @@ export function StylePicker({
             className={cn(
               "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] font-medium transition",
               active
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200/90 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-100"
+                : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10"
             )}
           >
             <span
