@@ -22,7 +22,7 @@ export const GENUI_VIEWPORT_SIZE: Record<
 };
 
 export function getGenuiModel() {
-  return (process.env.GENUI_MODEL || "gpt-4o-mini").trim();
+  return (process.env.GENUI_MODEL || "openai/gpt-oss-20b").trim();
 }
 
 export function getOpenAiBaseUrl() {
