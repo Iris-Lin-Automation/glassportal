@@ -111,13 +111,20 @@ function applyLocalHumanNotes(root: UiNode, notes: string) {
   return walk(root);
 }
 
+export type LocalReviseOutcome = {
+  schema: UiSchema;
+  changelog: string[];
+};
+
 /** Local deterministic revise when LLM unavailable / fixture mode */
 export function reviseSchemaLocally(
   schema: UiSchema,
   critique: CritiqueResult,
   intent: DesignIntent,
   humanNotes?: string
-): UiSchema {
+): LocalReviseOutcome {
+  const changelog: string[] = [];
+  const before = JSON.stringify(schema);
   const next: UiSchema = {
     version: 1,
     meta: {
@@ -130,13 +137,15 @@ export function reviseSchemaLocally(
     root: cloneNode(schema.root),
   };
 
-  if (humanNotes?.trim()) {
-    next.root = applyLocalHumanNotes(next.root, humanNotes);
+  if (schema.meta.style !== intent.style) {
+    changelog.push(`Set style to ${intent.style}`);
   }
 
-  const highCompleteness = critique.issues.some(
-    (i) => i.dimension === "completeness" && i.severity !== "low"
-  );
+  if (humanNotes?.trim()) {
+    next.root = applyLocalHumanNotes(next.root, humanNotes);
+    changelog.push("Applied human / critique notes to matching blocks");
+  }
+
   const missingH1 = critique.issues.some((i) =>
     /h1|primary heading/i.test(i.message)
   );
@@ -149,64 +158,99 @@ export function reviseSchemaLocally(
       type: "heading",
       props: { text: next.meta.title || "Untitled", level: 1 },
     });
+    changelog.push("Added missing H1 heading");
   }
 
-  if (highCompleteness && intent.pageType?.toLowerCase().includes("dashboard")) {
-    const hasKpi = JSON.stringify(next).includes('"kpi-card"');
-    const hasChart = JSON.stringify(next).includes('"chart"');
-    const hasTable = JSON.stringify(next).includes('"table"');
-    const extras: UiNode[] = [];
-    if (!hasKpi) {
-      extras.push({
-        id: makeId("n"),
-        type: "grid",
-        props: { columns: 3, gap: "md" },
-        children: [
-          {
-            id: makeId("n"),
-            type: "kpi-card",
-            props: { title: "Metric A", value: "—", delta: "+0%" },
-          },
-          {
-            id: makeId("n"),
-            type: "kpi-card",
-            props: { title: "Metric B", value: "—", delta: "+0%" },
-          },
-          {
-            id: makeId("n"),
-            type: "kpi-card",
-            props: { title: "Metric C", value: "—", delta: "+0%" },
-          },
-        ],
-      });
-    }
-    if (!hasChart) {
-      extras.push({
-        id: makeId("n"),
-        type: "chart",
-        props: {
-          title: "Overview",
-          chartType: "line",
-          points: [8, 12, 10, 16, 18, 22],
-        },
-      });
-    }
-    if (!hasTable) {
-      extras.push({
-        id: makeId("n"),
-        type: "table",
-        props: {
-          title: "Details",
-          columns: ["Item", "Status"],
-          rows: [
-            ["Alpha", "Active"],
-            ["Beta", "Pending"],
-          ],
-        },
-      });
-    }
+  const blob = () => JSON.stringify({ root: { children: kids }, ...next });
+  const needsTable = critique.issues.some((i) =>
+    /table|transaction/i.test(`${i.message} ${i.suggestion}`)
+  );
+  const needsChart = critique.issues.some((i) =>
+    /chart|graph/i.test(`${i.message} ${i.suggestion}`)
+  );
+  const needsKpi = critique.issues.some((i) =>
+    /kpi|metric/i.test(`${i.message} ${i.suggestion}`)
+  );
+  const highCompleteness = critique.issues.some(
+    (i) => i.dimension === "completeness" && i.severity !== "low"
+  );
 
-    // Prefer injecting into sidebar main column when present
+  const hasKpi = blob().includes('"kpi-card"');
+  const hasChart = blob().includes('"chart"');
+  const hasTable = blob().includes('"table"');
+  const extras: UiNode[] = [];
+
+  if ((highCompleteness || needsKpi) && !hasKpi) {
+    extras.push({
+      id: makeId("n"),
+      type: "grid",
+      props: { columns: 3, gap: "md" },
+      children: [
+        {
+          id: makeId("n"),
+          type: "kpi-card",
+          props: { title: "Metric A", value: "—", delta: "+0%" },
+        },
+        {
+          id: makeId("n"),
+          type: "kpi-card",
+          props: { title: "Metric B", value: "—", delta: "+0%" },
+        },
+        {
+          id: makeId("n"),
+          type: "kpi-card",
+          props: { title: "Metric C", value: "—", delta: "+0%" },
+        },
+      ],
+    });
+    changelog.push("Added KPI cards");
+  }
+  if ((highCompleteness || needsChart) && !hasChart) {
+    extras.push({
+      id: makeId("n"),
+      type: "chart",
+      props: {
+        title: "Overview",
+        chartType: "line",
+        points: [8, 12, 10, 16, 18, 22],
+      },
+    });
+    changelog.push("Added chart");
+  }
+  if ((highCompleteness || needsTable) && !hasTable) {
+    extras.push({
+      id: makeId("n"),
+      type: "table",
+      props: {
+        title: "Recent Transactions",
+        columns: ["Customer", "Plan", "Amount", "Status"],
+        rows: [
+          ["Acme Corp", "Pro", "$190", "Paid"],
+          ["Globex", "Agency", "$490", "Paid"],
+        ],
+      },
+    });
+    changelog.push("Added Recent Transactions table");
+  } else if (needsTable && hasTable) {
+    // Ensure an existing table is labeled clearly for the intent
+    const rename = (n: UiNode): UiNode => {
+      if (n.type === "table") {
+        const title = String(n.props?.title || "");
+        if (!/transaction/i.test(title)) {
+          changelog.push(`Renamed table to Recent Transactions`);
+          return {
+            ...n,
+            props: { ...n.props, title: "Recent Transactions" },
+            children: n.children?.map(rename),
+          };
+        }
+      }
+      return { ...n, children: n.children?.map(rename) };
+    };
+    for (let i = 0; i < kids.length; i++) kids[i] = rename(kids[i]);
+  }
+
+  if (extras.length) {
     const side = kids.find((c) => c.type === "sidebar-layout");
     if (side?.children?.[1]) {
       side.children[1] = {
@@ -219,7 +263,14 @@ export function reviseSchemaLocally(
   }
 
   next.root = { ...next.root, children: kids };
-  return next;
+
+  if (JSON.stringify(next) === before && changelog.length === 0) {
+    changelog.push(
+      "Schema already matched critique — re-score should clear false gaps"
+    );
+  }
+
+  return { schema: next, changelog };
 }
 
 export type ReviseResult = {
@@ -230,6 +281,7 @@ export type ReviseResult = {
   rawHash: string;
   usage?: { input: number; output: number };
   notes: string;
+  changelog: string[];
   palettePatch?: Partial<{
     accent: string;
     background: string;
@@ -254,13 +306,9 @@ export async function reviseUiSchema(opts: {
       .map((i) => `- [${i.severity}] ${i.dimension}: ${i.suggestion}`)
       .join("\n");
 
+  // No key / explicit local → deterministic revise (never hang with empty change)
   if (!hasLlmApiKey() || opts.allowLocal) {
-    if (!opts.allowLocal && !hasLlmApiKey()) {
-      throw new Error(
-        "OPENAI_API_KEY is not configured. Use local revise for fixture runs, or add a server key."
-      );
-    }
-    const schema = reviseSchemaLocally(
+    const local = reviseSchemaLocally(
       opts.schema,
       opts.critique,
       opts.intent,
@@ -271,14 +319,16 @@ export async function reviseUiSchema(opts: {
       color && /色|color|红|绿|蓝|青|橙|紫|accent|变/i.test(notes)
         ? { accent: color }
         : undefined;
-    const raw = JSON.stringify(schema);
+    if (palettePatch) local.changelog.push(`Palette accent → ${palettePatch.accent}`);
+    const raw = JSON.stringify(local.schema);
     return {
-      schema,
+      schema: local.schema,
       mode: "local",
       model: "local-revise",
       provider: "local",
       rawHash: await sha256Hex(raw),
       notes,
+      changelog: local.changelog,
       palettePatch,
     };
   }
@@ -328,6 +378,7 @@ export async function reviseUiSchema(opts: {
       rawHash: await sha256Hex(repair.content),
       usage: repair.usage,
       notes,
+      changelog: ["LLM revised schema from critique + human notes"],
     };
   }
 
@@ -342,5 +393,6 @@ export async function reviseUiSchema(opts: {
     rawHash: await sha256Hex(llm.content),
     usage: llm.usage,
     notes,
+    changelog: ["LLM revised schema from critique + human notes"],
   };
 }

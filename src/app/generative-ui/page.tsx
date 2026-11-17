@@ -82,6 +82,7 @@ export default function GenerativeUiWorkspacePage() {
   const [pendingNote, setPendingNote] = useState("");
   const [feedbackCollapsed, setFeedbackCollapsed] = useState(false);
   const [markStrokes, setMarkStrokes] = useState<MarkStroke[]>([]);
+  const [lastChangelog, setLastChangelog] = useState<string[]>([]);
   const historyRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
@@ -227,6 +228,9 @@ export default function GenerativeUiWorkspacePage() {
       if (json.palettePatch) {
         setPalette((prev) => ({ ...prev, ...json.palettePatch }));
       }
+      setLastChangelog(
+        Array.isArray(json.changelog) ? json.changelog : []
+      );
       setNote(json.meta?.note || "");
       setHumanNotes("");
       setPins([]);
@@ -234,6 +238,7 @@ export default function GenerativeUiWorkspacePage() {
       setPendingTarget(null);
       setPendingNote("");
       setAnnotateMode(false);
+      setFeedbackCollapsed(false);
       setTab("critique");
       setPanelOpen(false);
       await refreshHistory();
@@ -782,6 +787,7 @@ export default function GenerativeUiWorkspacePage() {
                     onToggleCollapsed={() =>
                       setFeedbackCollapsed((v) => !v)
                     }
+                    lastChangelog={lastChangelog}
                   />
                 </div>
               </div>

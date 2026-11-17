@@ -62,6 +62,7 @@ export function CritiquePanel({
   onRevise,
   collapsed,
   onToggleCollapsed,
+  lastChangelog,
 }: {
   critique: CritiqueResult | null;
   previousCritique?: CritiqueResult | null;
@@ -84,6 +85,7 @@ export function CritiquePanel({
   onRevise: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  lastChangelog?: string[];
 }) {
   const [showAuto, setShowAuto] = useState(false);
   const canRevise =
@@ -168,7 +170,7 @@ export function CritiquePanel({
           ) : (
             <Wand2 className="h-3 w-3" />
           )}
-          Revise
+          Fix
         </button>
         <button
           type="button"
@@ -181,6 +183,23 @@ export function CritiquePanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
+        <p className="rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-relaxed text-slate-500">
+          <span className="font-semibold text-slate-700">How it works: </span>
+          Critique scores → Fix auto-applies those issues. Or Mark + type your
+          own ask, then Fix. History keeps each version’s score.
+        </p>
+
+        {lastChangelog && lastChangelog.length > 0 ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] text-emerald-900">
+            <p className="font-semibold">Last fix</p>
+            <ul className="mt-0.5 list-disc pl-3">
+              {lastChangelog.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         {annotateMode ? (
           <p className="rounded-md bg-cyan-50 px-2 py-1 text-[10px] font-medium text-cyan-900">
             Drag on the preview to circle an area, then type what to change

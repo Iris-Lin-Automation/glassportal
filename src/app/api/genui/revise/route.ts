@@ -99,11 +99,12 @@ export async function POST(req: NextRequest) {
       ...detail,
       previousRevisionId: parent.id,
       palettePatch: revised.palettePatch || null,
+      changelog: revised.changelog || [],
       meta: {
         mode: revised.mode,
         note:
           revised.mode === "local"
-            ? "Local deterministic revision (fixture/offline path)."
+            ? `Local revise: ${(revised.changelog || []).join("; ") || "re-scored"}`
             : "Revised via server-side LLM.",
       },
     });

@@ -158,33 +158,66 @@ export function runRuleCritique(
     scores.color -= 0.5;
   }
 
-  // Completeness vs intent components
-  const wanted = (intent.components || []).map((c) => c.toLowerCase());
-  const aliases: Record<string, string[]> = {
-    sidebar: ["sidebar-layout", "nav"],
-    nav: ["nav", "sidebar-layout"],
-    kpi: ["kpi-card"],
-    metric: ["kpi-card"],
-    chart: ["chart"],
-    table: ["table"],
-    form: ["input", "button"],
-    hero: ["heading", "text", "image", "button"],
-    card: ["card", "kpi-card"],
-  };
+  // Completeness vs intent components (map free-text wants → node types / schema text)
+  const wanted = (intent.components || []).map((c) => c.toLowerCase().trim());
+  const schemaText = JSON.stringify(schema).toLowerCase();
+  const wantMatchers: Array<{
+    test: RegExp;
+    types: string[];
+    text?: RegExp;
+  }> = [
+    {
+      test: /transaction|table|data grid|recent/,
+      types: ["table"],
+      text: /transaction|table/,
+    },
+    { test: /chart|graph|plot|sparkline/, types: ["chart"], text: /chart/ },
+    {
+      test: /kpi|metric|stat|revenue card|counter/,
+      types: ["kpi-card"],
+      text: /kpi-card|total revenue|active users|churn/,
+    },
+    {
+      test: /sidebar|side nav|side panel/,
+      types: ["sidebar-layout"],
+      text: /sidebar-layout/,
+    },
+    { test: /nav|menu|navigation/, types: ["nav", "sidebar-layout"] },
+    { test: /button|cta/, types: ["button"] },
+    { test: /hero|headline|heading|title/, types: ["heading"] },
+    { test: /card/, types: ["card", "kpi-card"] },
+    { test: /form|input|field/, types: ["input", "button"] },
+    { test: /image|photo|hero image/, types: ["image"] },
+    { test: /list/, types: ["list", "table", "nav"] },
+  ];
+
   let missing = 0;
   for (const w of wanted) {
+    if (!w || w.length < 2) continue;
     let ok = false;
-    for (const [key, typesNeeded] of Object.entries(aliases)) {
-      if (w.includes(key)) {
-        ok = typesNeeded.some((t) => (types.get(t) || 0) > 0);
+    for (const m of wantMatchers) {
+      if (m.test.test(w)) {
+        ok =
+          m.types.some((t) => (types.get(t) || 0) > 0) ||
+          Boolean(m.text && m.text.test(schemaText));
         break;
       }
     }
-    if (!ok && w.length > 2) {
-      // soft: check if any node type string appears in want
-      ok = nodes.some((n) => w.includes(n.type) || n.type.includes(w.replace(/\s+/g, "-")));
+    if (!ok) {
+      // Exact node type / literal mention in schema
+      ok =
+        (types.get(w) || 0) > 0 ||
+        schemaText.includes(w) ||
+        nodes.some(
+          (n) =>
+            w.includes(n.type) ||
+            n.type.includes(w.replace(/\s+/g, "-")) ||
+            String(n.props?.title || "")
+              .toLowerCase()
+              .includes(w)
+        );
     }
-    if (!ok && wanted.length) {
+    if (!ok) {
       missing += 1;
       issues.push({
         dimension: "completeness",
