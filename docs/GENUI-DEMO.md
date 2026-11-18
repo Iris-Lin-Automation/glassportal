@@ -2,6 +2,9 @@
 
 Interview / hiring demo for the GlassPortal GenUI workbench.
 
+Also see **Studio auto brand cover** demo (theme-tinted commercial poster):  
+[`docs/STUDIO-COVER-DEMO.md`](./STUDIO-COVER-DEMO.md) · [GIF](./demos/auto-brand-cover-theme-switch.gif)
+
 ## What to show (3 minutes)
 
 1. **Generate** — `/generative-ui`  
