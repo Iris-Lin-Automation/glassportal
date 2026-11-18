@@ -110,10 +110,10 @@ function GenerativeUiWorkspaceInner() {
 
   const refreshHistory = async () => {
     try {
-      const res = await fetch(
-        `/api/genui/runs?ownerKey=${encodeURIComponent(OWNER_KEY)}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/genui/runs`, {
+        cache: "no-store",
+        credentials: "include",
+      });
       const json = await res.json();
       if (res.ok) setHistory(json.runs || []);
     } catch {
@@ -341,6 +341,7 @@ function GenerativeUiWorkspaceInner() {
     try {
       const res = await fetch(`/api/genui/runs/${encodeURIComponent(id)}`, {
         cache: "no-store",
+        credentials: "include",
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Load failed");

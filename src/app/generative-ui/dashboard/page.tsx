@@ -11,25 +11,54 @@ import {
 } from "lucide-react";
 import { GENUI_STYLE_LABELS } from "@/config/genui";
 import type { DashboardStats } from "@/lib/genui/dashboard-stats";
-
-const OWNER = "glassportal-eval";
+import {
+  AuthModal,
+  getConsultantSession,
+} from "@/components/studio/AuthModal";
 
 export default function GenuiDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [busy, setBusy] = useState<"load" | "seed" | null>("load");
   const [error, setError] = useState("");
   const [seedNote, setSeedNote] = useState("");
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    setSessionEmail(getConsultantSession());
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/session", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as { email?: string };
+        if (json.email) {
+          setSessionEmail(json.email);
+          sessionStorage.setItem("glassportal_consultant_session", json.email);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   const load = useCallback(async () => {
     setBusy("load");
     setError("");
     try {
-      const res = await fetch(
-        `/api/genui/dashboard?ownerKey=${encodeURIComponent(OWNER)}&limit=100`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/genui/dashboard?limit=100`, {
+        cache: "no-store",
+        credentials: "include",
+      });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Load failed");
+      if (!res.ok) {
+        if (res.status === 401) {
+          setAuthOpen(true);
+        }
+        throw new Error(json.error || "Load failed");
+      }
       setStats(json);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
@@ -47,12 +76,17 @@ export default function GenuiDashboardPage() {
     setError("");
     setSeedNote("");
     try {
+      if (!getConsultantSession() && !sessionEmail) {
+        setAuthOpen(true);
+        setError("Sign in first so eval runs save to your dashboard.");
+        setBusy(null);
+        return;
+      }
       const res = await fetch("/api/genui/eval/run", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ownerKey: OWNER,
           fixture: true,
           critique: true,
           revise: true,
@@ -60,7 +94,10 @@ export default function GenuiDashboardPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Eval run failed");
+      if (!res.ok) {
+        if (res.status === 401) setAuthOpen(true);
+        throw new Error(json.error || "Eval run failed");
+      }
       setSeedNote(
         `Ran ${json.count} cases (${json.meta?.note || "fixture + rules"}).`
       );
@@ -115,19 +152,32 @@ export default function GenuiDashboardPage() {
             Run 20 evals
           </button>
           <a
-            href={`/api/genui/export?ownerKey=${encodeURIComponent(OWNER)}&format=json`}
+            href={`/api/genui/export?format=json`}
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
           >
             <Download className="h-3.5 w-3.5" />
             JSON
           </a>
           <a
-            href={`/api/genui/export?ownerKey=${encodeURIComponent(OWNER)}&format=csv`}
+            href={`/api/genui/export?format=csv`}
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
           >
             <Download className="h-3.5 w-3.5" />
             CSV
           </a>
+          {sessionEmail ? (
+            <span className="hidden max-w-[140px] truncate text-[11px] text-slate-500 sm:inline">
+              {sessionEmail}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAuthOpen(true)}
+              className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 
@@ -298,6 +348,18 @@ export default function GenuiDashboardPage() {
           </div>
         </section>
       </main>
+
+      <AuthModal
+        open={authOpen}
+        intent="default"
+        onClose={() => setAuthOpen(false)}
+        onSuccess={(email) => {
+          setSessionEmail(email);
+          setAuthOpen(false);
+          setError("");
+          void load();
+        }}
+      />
     </div>
   );
 }
