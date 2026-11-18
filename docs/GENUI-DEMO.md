@@ -2,8 +2,9 @@
 
 Interview / hiring demo for the GlassPortal GenUI workbench.
 
-Also see **Studio auto brand cover** demo (theme-tinted commercial poster):  
-[`docs/STUDIO-COVER-DEMO.md`](./STUDIO-COVER-DEMO.md) · [GIF](./demos/auto-brand-cover-theme-switch.gif)
+Also see:
+- **GenUI core highlight (~16s)**: [`docs/GENUI-CORE-DEMO.md`](./GENUI-CORE-DEMO.md) · [GIF](./demos/genui-core-15s.gif)
+- **Studio auto brand cover**: [`docs/STUDIO-COVER-DEMO.md`](./STUDIO-COVER-DEMO.md) · [GIF](./demos/auto-brand-cover-theme-switch.gif)
 
 ## What to show (3 minutes)
 
