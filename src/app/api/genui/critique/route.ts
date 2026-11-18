@@ -5,7 +5,7 @@ import {
   loadRevision,
   loadRun,
 } from "@/lib/genui/stores/run-store";
-import { guardGenui } from "@/lib/security/genui-guard";
+import { assertGenuiRunOwner, guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
       costly: !rulesOnly,
     });
     if (!guard.ok) return guard.response;
-    if (guard.email && run.ownerKey !== guard.ownerKey && !run.ownerKey.startsWith("anon:")) {
+    // Anonymous and signed-in callers may only touch their own runs.
+    if (!assertGenuiRunOwner(run.ownerKey, guard.ownerKey)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

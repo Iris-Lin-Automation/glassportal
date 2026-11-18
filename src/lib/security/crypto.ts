@@ -8,7 +8,13 @@ import {
   timingSafeEqual,
 } from "crypto";
 
-/** App signing key material — never expose to the client. */
+/** Per-process fallback when no env secret is configured (never a fixed public string). */
+let ephemeralDevSecret: Buffer | null = null;
+
+/**
+ * App signing key material — never expose to the client.
+ * Prefer PORTAL_SIGNING_SECRET. Never use a hard-coded shared default.
+ */
 export function getAppSecret(): Buffer {
   const raw =
     process.env.PORTAL_SIGNING_SECRET ||
@@ -16,9 +22,23 @@ export function getAppSecret(): Buffer {
     process.env.KV_REST_API_TOKEN ||
     process.env.UPSTASH_REDIS_REST_TOKEN ||
     "";
-  if (raw) return createHash("sha256").update(raw).digest();
-  // Local-only fallback so Studio still works without secrets configured.
-  return createHash("sha256").update("glassportal-dev-signing-key").digest();
+  if (raw.trim()) {
+    return createHash("sha256").update(raw.trim()).digest();
+  }
+  // Ephemeral only — sessions/tickets reset on process restart; avoids a public fixed key.
+  if (!ephemeralDevSecret) {
+    ephemeralDevSecret = randomBytes(32);
+  }
+  return ephemeralDevSecret;
+}
+
+export function hasConfiguredSigningSecret(): boolean {
+  return Boolean(
+    process.env.PORTAL_SIGNING_SECRET?.trim() ||
+      process.env.FULFILLMENT_SECRET?.trim() ||
+      process.env.KV_REST_API_TOKEN?.trim() ||
+      process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
+  );
 }
 
 export function hmacSign(payload: string): string {
@@ -80,4 +100,9 @@ export function hashOpaque(value: string): string {
 export function looksLikeNotionToken(value?: string | null): boolean {
   if (!value) return false;
   return /^(secret_|ntn_)/i.test(value.trim());
+}
+
+/** Invite code proving out-of-band possession of an email (admin shares this). */
+export function registrationInviteFor(email: string): string {
+  return hmacSign(`reg-invite:${email.trim().toLowerCase()}`).slice(0, 12);
 }

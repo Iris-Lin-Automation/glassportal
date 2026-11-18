@@ -36,6 +36,7 @@ export function ConsultantAuthForm({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -97,6 +98,7 @@ export function ConsultantAuthForm({
           email: cleanEmail,
           password: cleanPass,
           name: name.trim(),
+          inviteCode: inviteCode.trim() || undefined,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -191,6 +193,21 @@ export function ConsultantAuthForm({
             autoComplete={mode === "register" ? "new-password" : "current-password"}
           />
         </label>
+        {mode === "register" ? (
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium text-slate-600">
+              Invite code (required when registration is locked)
+            </span>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="Optional unless your admin locked signup"
+              className="mech-input"
+              autoComplete="off"
+            />
+          </label>
+        ) : null}
         {error ? <p className="text-xs text-red-600">{error}</p> : null}
         <button
           type="submit"
