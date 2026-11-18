@@ -159,11 +159,15 @@ function NotionTable({
 function BlockView({
   block,
   token,
+  shareTicket,
+  pageId,
   rev,
   preset,
 }: {
   block: NotionParsedBlock;
   token?: string;
+  shareTicket?: string;
+  pageId?: string;
   rev?: string;
   preset: ThemePreset;
 }) {
@@ -227,6 +231,8 @@ function BlockView({
                   key={g.block.id}
                   block={g.block}
                   token={token}
+                  shareTicket={shareTicket}
+                  pageId={pageId}
                   rev={rev}
                   preset={preset}
                 />
@@ -264,6 +270,8 @@ function BlockView({
           url={block.url}
           caption={caption || undefined}
           token={token}
+          shareTicket={shareTicket}
+          pageId={pageId}
           rev={rev}
         />
       );
@@ -313,6 +321,7 @@ function BlockView({
 export function PortalRenderer({
   data,
   token,
+  shareTicket,
   logoUrl,
   theme,
   whiteLabel = false,
@@ -320,6 +329,7 @@ export function PortalRenderer({
 }: {
   data: PortalData;
   token?: string;
+  shareTicket?: string;
   /** Dynamic brand logo — always forwarded to PortalHeader (never hardcode). */
   logoUrl?: string;
   theme?: PortalTheme;
@@ -383,6 +393,8 @@ export function PortalRenderer({
               key={g.block.id}
               block={g.block}
               token={token}
+              shareTicket={shareTicket}
+              pageId={data.id}
               rev={rev}
               preset={preset}
             />

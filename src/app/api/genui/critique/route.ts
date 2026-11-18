@@ -5,6 +5,7 @@ import {
   loadRevision,
   loadRun,
 } from "@/lib/genui/stores/run-store";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,16 +36,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
+    const rulesOnly =
+      Boolean(body.rulesOnly) || run.model.mode === "fixture";
+    const guard = guardGenui(req, {
+      allowAnonymousFixture: true,
+      fixture: rulesOnly,
+      costly: !rulesOnly,
+    });
+    if (!guard.ok) return guard.response;
+    if (guard.email && run.ownerKey !== guard.ownerKey && !run.ownerKey.startsWith("anon:")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const critique = await critiqueUiSchema({
       schema: rev.schema,
       intent: rev.intentSnapshot,
       prompt: rev.promptSnapshot || run.prompt,
       revisionId: rev.id,
-      allowLlm: !body.rulesOnly && run.model.mode !== "fixture",
+      allowLlm: !rulesOnly,
     });
 
     // Fixture / rulesOnly → still real rules scores (never fake)
-    if (body.rulesOnly || run.model.mode === "fixture") {
+    if (rulesOnly) {
       critique.source = "rules";
       delete critique.model;
     }

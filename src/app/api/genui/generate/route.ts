@@ -3,6 +3,7 @@ import { GENUI_STYLES, type GenuiStyle } from "@/config/genui";
 import { generateUiSchema } from "@/lib/genui/generator";
 import { parseDesignIntent } from "@/lib/genui/intent-parser";
 import { createGeneration } from "@/lib/genui/stores/run-store";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,6 @@ export async function POST(req: NextRequest) {
       prompt?: string;
       style?: string;
       ownerKey?: string;
-      /** Use local fixture instead of LLM (honest sample mode) */
       fixture?: boolean;
     };
 
@@ -26,12 +26,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const useFixture = Boolean(body.fixture);
+    const guard = guardGenui(req, {
+      allowAnonymousFixture: true,
+      fixture: useFixture,
+      costly: !useFixture,
+    });
+    if (!guard.ok) return guard.response;
+
     const style: GenuiStyle = GENUI_STYLES.includes(body.style as GenuiStyle)
       ? (body.style as GenuiStyle)
       : "modern-saas";
 
-    const ownerKey = (body.ownerKey || "anon").trim() || "anon";
-    const useFixture = Boolean(body.fixture);
+    const ownerKey = guard.ownerKey;
 
     const { intent, source: intentSource } = await parseDesignIntent(prompt, {
       style,

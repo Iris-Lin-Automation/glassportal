@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
 import { syncPortalToNotion, type SyncPayload } from "@/lib/notion-sync";
+import { looksLikeNotionToken } from "@/lib/security/crypto";
+import { resolvePortalNotionToken } from "@/lib/security/portal-credential";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function extractToken(req: NextRequest): string | undefined {
-  return (
-    req.headers.get("x-notion-token") ||
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
-    req.nextUrl.searchParams.get("token") ||
-    process.env.NOTION_API_TOKEN ||
-    undefined
-  );
-}
 
 /** Bidirectional write: portal actions → Notion properties + audit callout */
 export async function POST(
@@ -21,10 +13,24 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = extractToken(req);
+    const pageId = resolveNotionPageId(decodeURIComponent(params.id));
+    const headerToken =
+      req.headers.get("x-notion-token") ||
+      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const shareTicket =
+      req.headers.get("x-portal-ticket") ||
+      req.nextUrl.searchParams.get("s") ||
+      undefined;
+
+    const token = await resolvePortalNotionToken({
+      pageId,
+      headerToken: looksLikeNotionToken(headerToken) ? headerToken : null,
+      shareTicket,
+    });
+
     if (!token) {
       return NextResponse.json(
-        { error: "Notion Integration Token is required." },
+        { error: "Portal credential required for sync." },
         { status: 401 }
       );
     }
@@ -37,7 +43,6 @@ export async function POST(
       return NextResponse.json({ error: "Invalid sync action" }, { status: 400 });
     }
 
-    const pageId = resolveNotionPageId(decodeURIComponent(params.id));
     const client = createNotionClient(token);
     const result = await syncPortalToNotion(client, pageId, body);
 

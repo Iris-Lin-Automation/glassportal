@@ -10,7 +10,10 @@ export interface PortalBranding {
   cardSubtitle?: string;
   confidentialLabel?: string;
   passcodeEnabled?: boolean;
+  /** @deprecated plaintext — migrate to passcodeHash; never return to clients */
   passcode?: string;
+  /** Opaque hash of passcode (preferred) */
+  passcodeHash?: string;
   ownerEmail?: string;
   showWatermark?: boolean;
   whiteLabel?: boolean;

@@ -9,6 +9,7 @@ import {
   attachCritiqueToRevision,
   createGeneration,
 } from "@/lib/genui/stores/run-store";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +32,14 @@ export async function POST(req: NextRequest) {
       caseIds?: string[];
     };
 
-    const ownerKey = (body.ownerKey || "glassportal-eval").trim();
     const useFixture = body.fixture !== false;
+    const guard = guardGenui(req, {
+      allowAnonymousFixture: true,
+      fixture: useFixture,
+      costly: !useFixture,
+    });
+    if (!guard.ok) return guard.response;
+    const ownerKey = guard.ownerKey;
     const doCritique = body.critique !== false;
     const doRevise = Boolean(body.revise);
     const limit = Math.min(Math.max(Number(body.limit) || 20, 1), 40);

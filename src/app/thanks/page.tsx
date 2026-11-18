@@ -30,9 +30,13 @@ export default function ThanksPage() {
       if (!mail.includes("@")) {
         throw new Error("Enter the email used at checkout.");
       }
-      const res = await fetch(`/api/plan?email=${encodeURIComponent(mail)}`, {
+      const res = await fetch(`/api/plan`, {
         cache: "no-store",
+        credentials: "include",
       });
+      if (res.status === 401) {
+        throw new Error("Sign in with your checkout email in Studio first.");
+      }
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not load plan");
       setPlan(json.plan);

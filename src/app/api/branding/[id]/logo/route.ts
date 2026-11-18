@@ -5,6 +5,15 @@ import { loadBranding } from "@/lib/branding-store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const ALLOWED = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+]);
+
 /** Serve saved client logo bytes for favicon / <img> on share links. */
 export async function GET(
   _req: NextRequest,
@@ -23,14 +32,19 @@ export async function GET(
       return NextResponse.json({ error: "Invalid logo data" }, { status: 400 });
     }
 
-    const contentType = match[1] || "image/png";
+    const rawType = (match[1] || "image/png").toLowerCase().trim();
+    if (!ALLOWED.has(rawType)) {
+      return NextResponse.json({ error: "Unsupported logo type" }, { status: 400 });
+    }
+    const contentType = rawType === "image/jpg" ? "image/jpeg" : rawType;
     const buffer = Buffer.from(match[2], "base64");
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        // Allow short cache but always revalidate — favicon must survive refresh
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "inline",
         "Cache-Control": "public, max-age=60, must-revalidate",
       },
     });

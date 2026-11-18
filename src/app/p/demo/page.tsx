@@ -60,7 +60,7 @@ export default function DemoClientPortalPage({
       className={`min-h-screen pb-[max(2rem,env(safe-area-inset-bottom,0px))] ${themePreset.pageBg} ${themePreset.pageText}`}
     >
       <PasswordGate
-        expected={gatePasscode}
+        demoExpected={gatePasscode}
         bypassWithToken={false}
         clientName={clientName}
         confidentialLabel={confidentialLabel}

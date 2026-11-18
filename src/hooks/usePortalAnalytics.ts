@@ -56,7 +56,7 @@ function computeProgress(scrollParent: HTMLElement | null): number {
 
 interface Options {
   pageId: string;
-  token?: string;
+  shareTicket?: string;
   rootSelector?: string;
   headingSelector?: string;
 }
@@ -64,7 +64,7 @@ interface Options {
 /** Lightweight engagement tracking via IntersectionObserver + heartbeat pings. */
 export function usePortalAnalytics({
   pageId,
-  token,
+  shareTicket,
   rootSelector = "#portal-export-root",
   headingSelector = "article h2, article h3, article h4",
 }: Options) {
@@ -81,13 +81,13 @@ export function usePortalAnalytics({
         type,
         pageId,
         sessionId: sessionId.current,
-        token,
+        shareTicket,
         syncNotion,
         ts: Date.now(),
         ...extra,
       });
     },
-    [pageId, token]
+    [pageId, shareTicket]
   );
 
   useEffect(() => {
@@ -192,12 +192,12 @@ export function usePortalAnalytics({
   const syncAction = useCallback(
     async (action: "confirm" | "unconfirm") => {
       emit(action, { progress: progressRef.current }, true);
-      if (!token) return;
+      if (!shareTicket) return;
       const res = await fetch(`/api/portal/${encodeURIComponent(pageId)}/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-notion-token": token,
+          "x-portal-ticket": shareTicket,
         },
         body: JSON.stringify({ action }),
       });
@@ -206,7 +206,7 @@ export function usePortalAnalytics({
         throw new Error(json.error || "Notion sync failed");
       }
     },
-    [emit, pageId, token]
+    [emit, pageId, shareTicket]
   );
 
   const trackConfirm = useCallback(

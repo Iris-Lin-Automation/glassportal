@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
 import { fetchPortalData } from "@/lib/parser";
 import { loadBranding } from "@/lib/branding-store";
@@ -14,6 +15,15 @@ import {
   loadPlan,
 } from "@/lib/plan-store";
 import { planShowsWatermark } from "@/config/plans";
+import { looksLikeNotionToken } from "@/lib/security/crypto";
+import {
+  resolvePortalNotionToken,
+  verifyVipAccessToken,
+} from "@/lib/security/portal-credential";
+import {
+  gateCookieName,
+  verifyGateCookie,
+} from "@/lib/security/gate-cookie";
 
 export const dynamic = "force-dynamic";
 
@@ -21,29 +31,6 @@ async function loadPortal(id: string, token?: string) {
   const pageId = resolveNotionPageId(id);
   const client = createNotionClient(token);
   return fetchPortalData(client, pageId);
-}
-
-function looksLikeNotionToken(value?: string | null) {
-  if (!value) return false;
-  return /^(secret_|ntn_)/i.test(value);
-}
-
-function resolveNotionToken(sp: SearchParams): string | undefined {
-  return (
-    sp.nt ||
-    sp.ntoken ||
-    sp.t ||
-    (looksLikeNotionToken(sp.token) ? sp.token : undefined) ||
-    process.env.NOTION_API_TOKEN ||
-    undefined
-  );
-}
-
-function resolveClientAccessToken(sp: SearchParams): string | undefined {
-  if (sp.token && !looksLikeNotionToken(sp.token)) return sp.token;
-  if (sp.atk) return sp.atk;
-  if (sp.key && !looksLikeNotionToken(sp.key)) return sp.key;
-  return undefined;
 }
 
 type SearchParams = {
@@ -54,23 +41,13 @@ type SearchParams = {
   key?: string;
   gate?: string;
   atk?: string;
+  s?: string;
+  v?: string;
   ogTitle?: string;
   ogDesc?: string;
   ogBadge?: string;
   client?: string;
 };
-
-function decodeGate(raw?: string, fallback?: string) {
-  if (!raw) return fallback;
-  if (raw.startsWith("b64.")) {
-    try {
-      return Buffer.from(raw.slice(4), "base64").toString("utf8");
-    } catch {
-      return raw;
-    }
-  }
-  return raw;
-}
 
 async function applyBranding(
   data: PortalData,
@@ -86,7 +63,6 @@ async function applyBranding(
 
   return {
     ...data,
-    // Keep Notion page title on the portal; OG/share overrides only via explicit query
     title: searchParams.ogTitle || data.title,
     description:
       searchParams.ogDesc ||
@@ -100,7 +76,6 @@ async function applyBranding(
       searchParams.ogBadge ||
       branding?.confidentialLabel ||
       data.badge,
-    // Prefer saved client logo (tab favicon + header); Notion emoji is last resort
     icon: logoPath || data.icon,
     brandColor: branding?.brandColor || data.brandColor || "#0F172A",
   };
@@ -113,87 +88,34 @@ export async function generateMetadata({
   params: { id: string };
   searchParams: SearchParams;
 }): Promise<Metadata> {
-  const notionToken = resolveNotionToken(searchParams);
   const pageId = resolveNotionPageId(params.id);
   const branding = await loadBranding(pageId);
   const fallbackTitle =
     searchParams.ogTitle ||
     branding?.cardTitle ||
-    "Confidential Executive Delivery · GlassPortal";
-  const fallbackDesc =
+    branding?.clientName ||
+    "Client Portal";
+  const description =
     searchParams.ogDesc ||
     branding?.cardSubtitle ||
-    "Private strategic briefing prepared for executive review.";
-  const logoIcon = branding?.logoDataUrl
+    "Confidential executive portal";
+  const logoPath = branding?.logoDataUrl
     ? `/api/branding/${encodeURIComponent(pageId)}/logo?v=${encodeURIComponent(
         branding.updatedAt
       )}`
     : undefined;
 
-  // Prefer branding logo for tab icon — Notion emoji/file icons are unreliable
-  const tabIcon = logoIcon
-    ? {
-        icon: [{ url: logoIcon }],
-        apple: [{ url: logoIcon }],
-        shortcut: logoIcon,
-      }
-    : undefined;
-
-  try {
-    if (!notionToken) {
-      return {
-        title: fallbackTitle,
-        description: fallbackDesc,
-        icons: tabIcon,
-        openGraph: {
-          title: fallbackTitle,
-          description: fallbackDesc,
-          type: "website",
-          images: logoIcon ? [logoIcon] : undefined,
-        },
-        robots: { index: false, follow: false },
-      };
-    }
-    const data = await applyBranding(
-      await loadPortal(params.id, notionToken),
-      pageId,
-      searchParams
-    );
-    const title = data.title || fallbackTitle;
-    const description =
-      data.description ||
-      `Prepared for ${data.preparedFor || data.clientName || "executive leadership"} · ${
-        data.badge || "Strictly Confidential"
-      }`;
-    const images = data.coverUrl
-      ? [data.coverUrl]
-      : logoIcon || (data.icon?.startsWith("/") || data.icon?.startsWith("http")
-          ? data.icon
-          : undefined)
-        ? [data.coverUrl || logoIcon || data.icon!]
-        : undefined;
-
-    return {
-      title,
-      description,
-      icons: tabIcon,
-      openGraph: { title, description, type: "website", images },
-      twitter: {
-        card: "summary_large_image",
-        title,
-        description,
-        images,
-      },
-      robots: { index: false, follow: false },
-    };
-  } catch {
-    return {
-      title: fallbackTitle,
-      description: fallbackDesc,
-      icons: tabIcon,
-      robots: { index: false, follow: false },
-    };
-  }
+  return {
+    title: fallbackTitle,
+    description,
+    icons: logoPath
+      ? {
+          icon: [{ url: logoPath }],
+          apple: [{ url: logoPath }],
+          shortcut: [logoPath],
+        }
+      : undefined,
+  };
 }
 
 export default async function PortalPage({
@@ -203,9 +125,23 @@ export default async function PortalPage({
   params: { id: string };
   searchParams: SearchParams;
 }) {
-  const notionToken = resolveNotionToken(searchParams);
-  const clientAccessToken = resolveClientAccessToken(searchParams);
   const pageId = resolveNotionPageId(params.id);
+  const shareTicket = searchParams.s?.trim();
+  // Reject Notion secrets from query strings — only opaque tickets or studio headers.
+  const headerLike =
+    looksLikeNotionToken(searchParams.nt) ||
+    looksLikeNotionToken(searchParams.ntoken) ||
+    looksLikeNotionToken(searchParams.t)
+      ? null
+      : null;
+
+  void headerLike;
+
+  const notionToken = await resolvePortalNotionToken({
+    pageId,
+    headerToken: null,
+    shareTicket,
+  });
 
   let error: string | null = null;
   let data: PortalData | null = null;
@@ -213,7 +149,7 @@ export default async function PortalPage({
   try {
     if (!notionToken) {
       throw new Error(
-        "No Notion credential available. Open the builder, or set NOTION_API_TOKEN."
+        "This portal link is missing a valid share ticket. Ask your advisor to re-publish the portal."
       );
     }
     data = await applyBranding(
@@ -239,14 +175,7 @@ export default async function PortalPage({
     showWatermark = true;
     whiteLabel = false;
   }
-  // Prefer ?gate=, then saved Studio branding, then Notion Password property
-  const gatePasscode =
-    decodeGate(searchParams.gate) ||
-    (branding?.passcodeEnabled && branding.passcode?.trim()
-      ? branding.passcode.trim()
-      : undefined) ||
-    data?.password ||
-    undefined;
+
   const clientName =
     searchParams.client ||
     branding?.clientName ||
@@ -257,8 +186,28 @@ export default async function PortalPage({
     branding?.confidentialLabel ||
     data?.badge ||
     "Strictly Confidential";
-  // Only explicit client access tokens skip the gate — never Notion `nt=`
-  const bypassWithToken = Boolean(clientAccessToken);
+
+  const vipRaw =
+    searchParams.v ||
+    (searchParams.token && !looksLikeNotionToken(searchParams.token)
+      ? searchParams.token
+      : undefined) ||
+    searchParams.atk ||
+    (searchParams.key && !looksLikeNotionToken(searchParams.key)
+      ? searchParams.key
+      : undefined);
+  const bypassWithToken = await verifyVipAccessToken(pageId, vipRaw);
+
+  const cookieStore = cookies();
+  const alreadyUnlocked = verifyGateCookie(
+    pageId,
+    cookieStore.get(gateCookieName(pageId))?.value
+  );
+
+  const passcodeEnabled = Boolean(
+    branding?.passcodeEnabled && (branding.passcodeHash || branding.passcode)
+  );
+
   const theme = normalizeThemeId(branding?.theme);
   const themePreset = getThemePreset(theme);
   const portalData = data
@@ -275,7 +224,6 @@ export default async function PortalPage({
     <div
       className={`min-h-screen pb-[max(2rem,env(safe-area-inset-bottom,0px))] ${themePreset.pageBg} ${themePreset.pageText}`}
     >
-      {/* Tab favicon = uploaded brand logo (outside gate so it always applies) */}
       <PortalBrandFavicon pageId={pageId} />
       {error || !portalData ? (
         <div className="mx-auto max-w-xl px-6 py-24 text-center">
@@ -302,8 +250,10 @@ export default async function PortalPage({
         </div>
       ) : (
         <PasswordGate
-          expected={gatePasscode}
+          pageId={pageId}
+          passcodeEnabled={passcodeEnabled}
           bypassWithToken={bypassWithToken}
+          alreadyUnlocked={alreadyUnlocked}
           clientName={clientName}
           confidentialLabel={confidentialLabel}
         >
@@ -317,7 +267,7 @@ export default async function PortalPage({
           </div>
           <PortalShell
             data={portalData}
-            token={notionToken}
+            shareTicket={shareTicket}
             theme={theme}
             whiteLabel={whiteLabel}
             showWatermark={showWatermark}

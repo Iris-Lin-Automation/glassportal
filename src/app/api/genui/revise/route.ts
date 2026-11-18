@@ -7,6 +7,7 @@ import {
   loadRevision,
   loadRun,
 } from "@/lib/genui/stores/run-store";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
+    const useLocal = Boolean(body.local) || run.model.mode === "fixture";
+    const guard = guardGenui(req, {
+      allowAnonymousFixture: true,
+      fixture: useLocal,
+      costly: !useLocal,
+    });
+    if (!guard.ok) return guard.response;
+    if (guard.email && run.ownerKey !== guard.ownerKey && !run.ownerKey.startsWith("anon:")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     let critique = parent.critique;
     if (!critique) {
       critique = await critiqueUiSchema({
@@ -51,7 +63,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const useLocal = Boolean(body.local) || run.model.mode === "fixture";
     const revised = await reviseUiSchema({
       prompt: parent.promptSnapshot || run.prompt,
       intent: parent.intentSnapshot,

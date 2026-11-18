@@ -63,11 +63,6 @@ function makeAccessToken() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function encodeGate(passcode: string) {
-  if (typeof window === "undefined") return passcode;
-  return `b64.${btoa(unescape(encodeURIComponent(passcode)))}`;
-}
-
 type AuthIntent = "private-link" | "save";
 
 export default function BuilderPage() {
@@ -229,18 +224,24 @@ export default function BuilderPage() {
     setLastSyncedAt("");
   };
 
+  const [shareTicket, setShareTicket] = useState("");
+
   const persistBranding = async (
     pageId: string,
     overrides?: { logoDataUrl?: string; brandColor?: string; theme?: PortalTheme },
     opts?: { publish?: boolean }
-  ): Promise<{ ok: boolean; error?: string }> => {
+  ): Promise<{ ok: boolean; error?: string; shareTicket?: string }> => {
     try {
       const email = getConsultantSession();
+      if (!email) {
+        return { ok: false, error: "Sign in required to save branding." };
+      }
+      const cleanToken = token.trim();
       const res = await fetch(`/api/branding/${encodeURIComponent(pageId)}`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(email ? { "x-consultant-email": email } : {}),
         },
         body: JSON.stringify({
           clientName: clientName.trim(),
@@ -253,8 +254,9 @@ export default function BuilderPage() {
           passcodeEnabled,
           passcode:
             passcodeEnabled && passcode.trim() ? passcode.trim() : undefined,
-          ownerEmail: email || undefined,
           publish: opts?.publish === true,
+          notionToken: cleanToken || undefined,
+          accessToken: accessToken || undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -268,7 +270,9 @@ export default function BuilderPage() {
       }
       const ent = (json as { entitlements?: { plan?: PlanId } }).entitlements;
       if (ent?.plan) setPlanId(ent.plan);
-      return { ok: true };
+      const ticket = (json as { shareTicket?: string }).shareTicket;
+      if (ticket) setShareTicket(ticket);
+      return { ok: true, shareTicket: ticket };
     } catch {
       return { ok: false, error: "Network error while saving branding." };
     }
@@ -297,7 +301,7 @@ export default function BuilderPage() {
     reader.readAsDataURL(file);
   };
 
-  const buildPaths = (pageId: string, cleanToken: string) => {
+  const buildPaths = (pageId: string, ticket: string) => {
     const expiryQs =
       linkExpiry && linkExpiry !== "never"
         ? `&expiresIn=${encodeURIComponent(linkExpiry)}d`
@@ -320,24 +324,22 @@ export default function BuilderPage() {
       .map((q) => `&${q}`)
       .join("");
 
-    // Put gate immediately after nt so long OG params cannot truncate it away
-    const gateQs =
-      passcodeEnabled && passcode.trim()
-        ? `&gate=${encodeURIComponent(encodeGate(passcode.trim()))}`
-        : "";
-
-    const root = `/p/${encodeURIComponent(pageId)}?nt=${encodeURIComponent(cleanToken)}`;
-    const passcodeLink = `${root}${gateQs}${expiryQs}${ogQs}`;
-    // Private VIP link: no gate param — ?token= alone bypasses PasswordGate
+    // Opaque share ticket only — never embed Notion Integration Token in URLs.
+    const root = ticket
+      ? `/p/${encodeURIComponent(pageId)}?s=${encodeURIComponent(ticket)}`
+      : `/p/${encodeURIComponent(pageId)}`;
+    const passcodeLink = `${root}${expiryQs}${ogQs}`;
+    // Private VIP link: ?v= client access token (hashed server-side)
     const privateLink = accessToken
-      ? `${root}&token=${encodeURIComponent(accessToken)}${expiryQs}${ogQs}`
+      ? `${root}&v=${encodeURIComponent(accessToken)}${expiryQs}${ogQs}`
       : passcodeLink;
 
     return { passcodeLink, privateLink };
   };
 
-  const refreshPathsFromData = (portal: PortalData, cleanToken: string) => {
-    const paths = buildPaths(portal.id, cleanToken);
+  const refreshPathsFromData = (portal: PortalData, ticket?: string) => {
+    const t = (ticket || shareTicket).trim();
+    const paths = buildPaths(portal.id, t);
     setPortalPath(paths.passcodeLink);
     setPrivatePath(paths.privateLink);
     return paths;
@@ -346,8 +348,13 @@ export default function BuilderPage() {
   // Keep share links + server branding in sync when passcode settings change
   useEffect(() => {
     if (!data?.id || !token.trim()) return;
-    refreshPathsFromData(data, token.trim());
-    void persistBranding(data.id);
+    if (getConsultantSession()) {
+      void persistBranding(data.id).then((saved) => {
+        if (saved.ok) refreshPathsFromData(data, saved.shareTicket);
+      });
+    } else {
+      refreshPathsFromData(data, shareTicket);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-link when gate inputs change
   }, [passcodeEnabled, passcode, accessToken, linkExpiry, data?.id]);
 
@@ -387,8 +394,13 @@ export default function BuilderPage() {
 
       const portal = json as PortalData;
       setData(portal);
-      refreshPathsFromData(portal, cleanToken);
-      await persistBranding(portal.id);
+      const saved = getConsultantSession()
+        ? await persistBranding(portal.id)
+        : { ok: false as const };
+      refreshPathsFromData(portal, saved.shareTicket);
+      if (getConsultantSession() && !saved.ok && saved.error) {
+        /* branding save optional until signed in */
+      }
       setLastSyncedAt(
         new Date().toLocaleTimeString("en-US", { hour12: false })
       );
@@ -463,8 +475,12 @@ export default function BuilderPage() {
       setError("Connect Notion first — sample demo cannot generate client links.");
       return;
     }
-    await persistBranding(portal.id);
-    const paths = refreshPathsFromData(portal, cleanToken);
+    const saved = await persistBranding(portal.id);
+    if (!saved.ok) {
+      setError(saved.error || "Sign in and save branding before sharing.");
+      return;
+    }
+    const paths = refreshPathsFromData(portal, saved.shareTicket);
     await copyText(paths.privateLink, "private");
   };
 
@@ -510,12 +526,12 @@ export default function BuilderPage() {
         pageId: portal.id,
       })
     );
-    refreshPathsFromData(portal, cleanToken);
     const result = await persistBranding(portal.id, undefined, { publish: true });
     if (!result.ok) {
       setError(result.error || "Publish blocked by plan limits.");
       return;
     }
+    refreshPathsFromData(portal, result.shareTicket);
     setSavedFlash(true);
     window.setTimeout(() => setSavedFlash(false), 2000);
   };

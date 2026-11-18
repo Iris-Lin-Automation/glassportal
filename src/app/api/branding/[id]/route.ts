@@ -6,7 +6,11 @@ import {
   entitlementsFor,
   getOrCreatePlan,
 } from "@/lib/plan-store";
-import { getPlan, type PlanId } from "@/config/plans";
+import type { PlanId } from "@/config/plans";
+import { hashOpaque, looksLikeNotionToken } from "@/lib/security/crypto";
+import { savePortalCredential } from "@/lib/security/portal-credential";
+import { toPublicBranding } from "@/lib/security/public-branding";
+import { requireSessionEmail } from "@/lib/security/studio-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +25,7 @@ export async function GET(
     if (!branding) {
       return NextResponse.json({ error: "No branding saved" }, { status: 404 });
     }
-    return NextResponse.json(branding);
+    return NextResponse.json(toPublicBranding(branding));
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load branding";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -33,6 +37,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const sessionEmail = requireSessionEmail(req);
+    if (!sessionEmail) {
+      return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    }
+
     const pageId = resolveNotionPageId(decodeURIComponent(params.id));
     const body = (await req.json()) as {
       clientName?: string;
@@ -45,8 +54,9 @@ export async function POST(
       passcodeEnabled?: boolean;
       passcode?: string;
       ownerEmail?: string;
-      /** When true, claim a portal slot against the consultant plan quota. */
       publish?: boolean;
+      notionToken?: string;
+      accessToken?: string;
     };
 
     if (body.logoDataUrl && body.logoDataUrl.length > 2_500_000) {
@@ -56,16 +66,14 @@ export async function POST(
       );
     }
 
-    const ownerEmail =
-      body.ownerEmail?.trim().toLowerCase() ||
-      req.headers.get("x-consultant-email")?.trim().toLowerCase() ||
-      undefined;
+    // Owner is always the signed-in consultant — never trust body.ownerEmail alone.
+    const ownerEmail = sessionEmail;
 
     let showWatermark = true;
     let whiteLabel = false;
     let planId: PlanId = "starter";
 
-    if (ownerEmail && body.publish) {
+    if (body.publish) {
       const claim = await claimPortal(ownerEmail, pageId);
       if (!claim.ok) {
         return NextResponse.json(
@@ -84,7 +92,6 @@ export async function POST(
       whiteLabel = ent.whiteLabel;
       planId = claim.record.plan;
 
-      // Starter cannot use passcode lock (Pro+)
       if (body.passcodeEnabled && !ent.passwordProtection) {
         return NextResponse.json(
           {
@@ -96,20 +103,38 @@ export async function POST(
           { status: 402 }
         );
       }
-    } else if (ownerEmail) {
+    } else {
       const record = await getOrCreatePlan(ownerEmail);
       const ent = entitlementsFor(record.plan);
       showWatermark = ent.showWatermark;
       whiteLabel = ent.whiteLabel;
       planId = record.plan;
-    } else {
-      // Unpublished / guest sync — always show PLG watermark
-      const starter = getPlan("starter");
-      showWatermark = starter.watermark;
-      whiteLabel = starter.whiteLabel;
     }
 
     const existing = await loadBranding(pageId);
+    // Only the existing owner (or first publisher) may overwrite this page.
+    if (
+      existing?.ownerEmail &&
+      existing.ownerEmail.toLowerCase() !== ownerEmail
+    ) {
+      return NextResponse.json(
+        { error: "You do not own this portal branding record." },
+        { status: 403 }
+      );
+    }
+
+    let passcodeHash = existing?.passcodeHash;
+    let passcodePlain: string | undefined = undefined;
+    if (typeof body.passcode === "string") {
+      const trimmed = body.passcode.trim();
+      if (trimmed) {
+        passcodeHash = hashOpaque(trimmed);
+        passcodePlain = undefined; // drop plaintext going forward
+      } else {
+        passcodeHash = undefined;
+      }
+    }
+
     const saved = await saveBranding(pageId, {
       clientName: body.clientName ?? existing?.clientName,
       logoDataUrl: body.logoDataUrl ?? existing?.logoDataUrl,
@@ -123,18 +148,30 @@ export async function POST(
         typeof body.passcodeEnabled === "boolean"
           ? body.passcodeEnabled
           : existing?.passcodeEnabled,
-      passcode:
-        body.passcode !== undefined ? body.passcode : existing?.passcode,
-      ownerEmail: ownerEmail || existing?.ownerEmail,
+      passcode: passcodePlain,
+      passcodeHash,
+      ownerEmail,
       showWatermark,
       whiteLabel,
     });
 
+    let shareTicket: string | undefined;
+    if (body.notionToken && looksLikeNotionToken(body.notionToken)) {
+      const cred = await savePortalCredential({
+        pageId,
+        notionToken: body.notionToken,
+        ownerEmail,
+        accessToken: body.accessToken,
+      });
+      shareTicket = cred.ticket;
+    }
+
     return NextResponse.json({
       ok: true,
-      branding: saved,
+      branding: toPublicBranding(saved),
       plan: planId,
       entitlements: entitlementsFor(planId),
+      shareTicket,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to save branding";

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GENUI_STYLES, type GenuiStyle } from "@/config/genui";
 import { parseDesignIntent } from "@/lib/genui/intent-parser";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,15 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       prompt?: string;
       style?: string;
+      fixture?: boolean;
     };
+    const guard = guardGenui(req, {
+      allowAnonymousFixture: true,
+      fixture: Boolean(body.fixture),
+      costly: !body.fixture,
+    });
+    if (!guard.ok) return guard.response;
+
     const prompt = (body.prompt || "").trim();
     if (!prompt) {
       return NextResponse.json(

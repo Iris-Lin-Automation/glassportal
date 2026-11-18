@@ -3,17 +3,19 @@ import {
   buildExportRecords,
   recordsToCsv,
 } from "@/lib/genui/dashboard-stats";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const ownerKey = req.nextUrl.searchParams.get("ownerKey") || "*";
+    const guard = guardGenui(req, { allowAnonymousFixture: false, costly: false });
+    if (!guard.ok) return guard.response;
     const format = (req.nextUrl.searchParams.get("format") || "json").toLowerCase();
     const limit = Number(req.nextUrl.searchParams.get("limit") || "100");
     const rows = await buildExportRecords({
-      ownerKey,
+      ownerKey: guard.ownerKey,
       limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 300) : 100,
     });
 

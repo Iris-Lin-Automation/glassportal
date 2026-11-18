@@ -7,6 +7,8 @@ import {
 } from "@/lib/analytics-store";
 import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
 import { syncPortalToNotion } from "@/lib/notion-sync";
+import { resolvePortalNotionToken } from "@/lib/security/portal-credential";
+import { requireSessionEmail } from "@/lib/security/studio-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +24,10 @@ const TYPES: HeartbeatEventType[] = [
 ];
 
 export async function GET(req: NextRequest) {
+  const email = requireSessionEmail(req);
+  if (!email) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  }
   const pageId = req.nextUrl.searchParams.get("pageId") || undefined;
   const limit = Number(req.nextUrl.searchParams.get("limit") || 40);
   return NextResponse.json({
@@ -32,8 +38,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Partial<HeartbeatEvent> & {
-      token?: string;
       syncNotion?: boolean;
+      shareTicket?: string;
     };
 
     if (!body.type || !TYPES.includes(body.type as HeartbeatEventType)) {
@@ -59,39 +65,44 @@ export async function POST(req: NextRequest) {
 
     pushHeartbeat(event);
 
-    // Optional Notion writeback for confirm / deep reading progress
     let sync: { updated: string[]; appended: boolean } | null = null;
     const shouldSync =
       body.syncNotion &&
-      body.token &&
       (event.type === "confirm" ||
         (event.type === "progress" &&
           typeof event.progress === "number" &&
           event.progress >= 95));
 
-    if (shouldSync && body.token) {
+    if (shouldSync) {
       try {
         const pageId = resolveNotionPageId(event.pageId);
-        const client = createNotionClient(body.token);
-        sync = await syncPortalToNotion(client, pageId, {
-          action: event.type === "confirm" ? "confirm" : "progress",
-          progress: event.progress,
-          note: event.sectionTitle,
+        const ticket =
+          body.shareTicket ||
+          req.headers.get("x-portal-ticket") ||
+          undefined;
+        const token = await resolvePortalNotionToken({
+          pageId,
+          headerToken: null,
+          shareTicket: ticket,
         });
-      } catch (err) {
-        return NextResponse.json({
-          ok: true,
-          event,
-          syncError: err instanceof Error ? err.message : String(err),
-        });
+        if (token) {
+          const client = createNotionClient(token);
+          sync = await syncPortalToNotion(client, pageId, {
+            action: event.type === "confirm" ? "confirm" : "progress",
+            progress: event.progress,
+            note: event.sectionTitle,
+          });
+        }
+      } catch {
+        /* analytics still recorded */
       }
     }
 
-    return NextResponse.json({ ok: true, event, sync });
-  } catch (err) {
+    return NextResponse.json({ ok: true, sync });
+  } catch (e) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Bad request" },
-      { status: 400 }
+      { error: e instanceof Error ? e.message : "Heartbeat failed" },
+      { status: 500 }
     );
   }
 }

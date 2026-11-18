@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listRuns } from "@/lib/genui/stores/run-store";
+import { guardGenui } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const ownerKey =
-      req.nextUrl.searchParams.get("ownerKey") ||
-      req.headers.get("x-playground-owner") ||
-      "*";
+    const guard = guardGenui(req, { allowAnonymousFixture: false, costly: false });
+    if (!guard.ok) return guard.response;
     const limit = Number(req.nextUrl.searchParams.get("limit") || 30);
-    const runs = await listRuns(ownerKey, Math.min(limit, 100));
+    const runs = await listRuns(guard.ownerKey, Math.min(limit, 100));
     return NextResponse.json({ runs });
   } catch (e) {
     return NextResponse.json(

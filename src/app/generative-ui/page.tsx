@@ -128,6 +128,7 @@ function GenerativeUiWorkspaceInner() {
     try {
       const res = await fetch("/api/genui/generate", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
@@ -166,6 +167,7 @@ function GenerativeUiWorkspaceInner() {
     try {
       const res = await fetch("/api/genui/critique", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           revisionId: revision.id,
@@ -219,6 +221,7 @@ function GenerativeUiWorkspaceInner() {
       const useLocal = run?.model.mode === "fixture" && !notes;
       const res = await fetch("/api/genui/revise", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           revisionId: revision.id,
@@ -316,6 +319,7 @@ function GenerativeUiWorkspaceInner() {
     try {
       const res = await fetch("/api/genui/intent", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, style }),
       });

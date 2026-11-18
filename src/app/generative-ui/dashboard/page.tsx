@@ -49,6 +49,7 @@ export default function GenuiDashboardPage() {
     try {
       const res = await fetch("/api/genui/eval/run", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ownerKey: OWNER,

@@ -15,7 +15,10 @@ import { ExportToolbar } from "@/components/ui/ExportToolbar";
 
 interface PortalShellProps {
   data: PortalData;
+  /** Studio-only Notion Integration Token (never put in public share URLs). */
   token?: string;
+  /** Opaque published share ticket (`?s=`). */
+  shareTicket?: string;
   shareUrl?: string;
   showToolbar?: boolean;
   pinProgress?: boolean;
@@ -83,6 +86,7 @@ function mergeLive(prev: PortalData, next: PortalData): PortalData {
 export function PortalShell({
   data,
   token,
+  shareTicket,
   shareUrl,
   showToolbar = true,
   pinProgress = true,
@@ -149,20 +153,18 @@ export function PortalShell({
     });
   }, [data]);
 
-  const tokenFromUrl = useMemo(() => {
+  const studioToken = useMemo(() => {
     const fromProp = token?.trim();
     if (fromProp && /^(secret_|ntn_)/i.test(fromProp)) return fromProp;
-    if (typeof window === "undefined") {
-      return fromProp || undefined;
-    }
-    const sp = new URLSearchParams(window.location.search);
-    const nt = (sp.get("nt") || sp.get("ntoken") || sp.get("t") || "").trim();
-    if (nt && /^(secret_|ntn_)/i.test(nt)) return nt;
-    const legacy = (sp.get("token") || "").trim();
-    if (legacy && /^(secret_|ntn_)/i.test(legacy)) return legacy;
-    // Studio may pass a valid integration token that doesn't match prefix heuristics
-    return fromProp || nt || undefined;
+    return undefined;
   }, [token]);
+
+  const portalTicket = useMemo(() => {
+    const fromProp = shareTicket?.trim();
+    if (fromProp) return fromProp;
+    if (typeof window === "undefined") return undefined;
+    return new URLSearchParams(window.location.search).get("s")?.trim() || undefined;
+  }, [shareTicket]);
 
   // Re-hydrate logo from branding API after hard refresh (favicon + header)
   useEffect(() => {
@@ -210,13 +212,16 @@ export function PortalShell({
   }, [data.id]);
 
   const refreshFromNotion = useCallback(async () => {
-    if (!tokenFromUrl || syncing.current) return;
+    if ((!studioToken && !portalTicket) || syncing.current) return;
     syncing.current = true;
     try {
+      const headers: Record<string, string> = {};
+      if (studioToken) headers["x-notion-token"] = studioToken;
+      if (portalTicket) headers["x-portal-ticket"] = portalTicket;
       const res = await fetch(
         `/api/portal/${encodeURIComponent(live.id)}?_=${Date.now()}`,
         {
-          headers: { "x-notion-token": tokenFromUrl },
+          headers,
           cache: "no-store",
         }
       );
@@ -232,10 +237,10 @@ export function PortalShell({
     } finally {
       syncing.current = false;
     }
-  }, [tokenFromUrl, live.id, onLiveData]);
+  }, [studioToken, portalTicket, live.id, onLiveData]);
 
   useEffect(() => {
-    if (!liveSync || !tokenFromUrl) return;
+    if (!liveSync || (!studioToken && !portalTicket)) return;
 
     const onFocus = () => {
       void refreshFromNotion();
@@ -249,7 +254,7 @@ export function PortalShell({
       window.removeEventListener("focus", onFocus);
       window.clearInterval(timer);
     };
-  }, [liveSync, tokenFromUrl, liveSyncMs, refreshFromNotion]);
+  }, [liveSync, studioToken, portalTicket, liveSyncMs, refreshFromNotion]);
 
   // Parent updates brandColor on theme select / logo upload — keep in sync
   const brandColor =
@@ -265,7 +270,7 @@ export function PortalShell({
     trackCopy,
   } = usePortalAnalytics({
     pageId: live.id,
-    token: tokenFromUrl,
+    shareTicket: portalTicket,
   });
 
   return (
@@ -287,7 +292,8 @@ export function PortalShell({
       {/* Spacer is owned by ReadingProgress anchor — avoid double gap */}
       <PortalRenderer
         data={{ ...live, brandColor }}
-        token={tokenFromUrl}
+        token={studioToken}
+        shareTicket={portalTicket}
         logoUrl={logoUrl}
         theme={resolvedTheme}
         whiteLabel={whiteLabel}
