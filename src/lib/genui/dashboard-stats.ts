@@ -89,15 +89,12 @@ export async function buildDashboardStats(opts?: {
   let revised = 0;
   const latestScores: number[] = [];
   const deltas: number[] = [];
-  const styleBucket: Record<
+  const styleBucket = Object.fromEntries(
+    GENUI_STYLES.map((s) => [s, { scores: [] as number[], deltas: [] as number[], runs: 0 }])
+  ) as Record<
     GenuiStyle,
     { scores: number[]; deltas: number[]; runs: number }
-  > = {
-    minimal: { scores: [], deltas: [], runs: 0 },
-    "modern-saas": { scores: [], deltas: [], runs: 0 },
-    editorial: { scores: [], deltas: [], runs: 0 },
-    "night-sky": { scores: [], deltas: [], runs: 0 },
-  };
+  >;
 
   for (const run of runs) {
     const detail = await loadRunDetail(run.id);

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, type CSSProperties } from "react";
 import {
+  Area,
+  AreaChart,
   Line,
   LineChart,
   Bar,
@@ -13,6 +15,7 @@ import {
 } from "recharts";
 import {
   GENUI_PALETTE_DEFAULTS,
+  isDarkGenuiStyle,
   type GenuiPalette,
   type GenuiStyle,
   type GenuiViewport,
@@ -71,19 +74,39 @@ function paletteVars(palette: GenuiPalette): CSSProperties {
   };
 }
 
-function nightSkyBackground(style: GenuiStyle): CSSProperties | undefined {
-  if (style !== "night-sky") return undefined;
-  return {
-    backgroundImage: `
-      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.55), transparent),
-      radial-gradient(1px 1px at 70% 18%, rgba(255,255,255,0.4), transparent),
-      radial-gradient(1.5px 1.5px at 40% 70%, rgba(165,243,252,0.55), transparent),
-      radial-gradient(1px 1px at 85% 55%, rgba(255,255,255,0.35), transparent),
-      radial-gradient(900px 420px at 15% -10%, rgba(56,189,248,0.18), transparent),
-      radial-gradient(700px 380px at 90% 0%, rgba(99,102,241,0.16), transparent),
-      linear-gradient(180deg, var(--genui-bg), #04060f 100%)
+function styleAtmosphere(style: GenuiStyle): CSSProperties | undefined {
+  if (style === "night-sky") {
+    return {
+      backgroundImage: `
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.45), transparent),
+      radial-gradient(1px 1px at 70% 18%, rgba(255,255,255,0.35), transparent),
+      radial-gradient(1.5px 1.5px at 40% 70%, rgba(34,211,161,0.45), transparent),
+      radial-gradient(1px 1px at 85% 55%, rgba(255,255,255,0.28), transparent),
+      radial-gradient(900px 420px at 15% -10%, rgba(34,211,161,0.16), transparent),
+      radial-gradient(720px 400px at 92% 0%, rgba(124,58,237,0.28), transparent),
+      linear-gradient(180deg, #05070D 0%, #070B14 100%)
     `,
-  };
+    };
+  }
+  if (style === "obsidian") {
+    return {
+      backgroundImage: `
+      radial-gradient(1200px 520px at 70% 10%, rgba(34,211,238,0.10), transparent 55%),
+      radial-gradient(900px 480px at 10% 90%, rgba(124,58,237,0.12), transparent 50%),
+      linear-gradient(180deg, #050505 0%, #0a0a0a 55%, #050505 100%)
+    `,
+    };
+  }
+  if (style === "fintech" || style === "modern-saas") {
+    return {
+      backgroundImage: `
+      radial-gradient(900px 420px at 100% 0%, rgba(139,92,246,0.08), transparent 55%),
+      radial-gradient(700px 360px at 0% 100%, rgba(99,102,241,0.05), transparent 50%),
+      linear-gradient(180deg, var(--genui-bg), #FFFFFF 100%)
+    `,
+    };
+  }
+  return undefined;
 }
 
 function NodeBody({
@@ -98,24 +121,29 @@ function NodeBody({
   viewport: GenuiViewport;
 }) {
   const p = node.props || {};
-  const isNight = style === "night-sky";
-  const isEditorial = style === "editorial";
+  const isNight = isDarkGenuiStyle(style);
+  const isObsidian = style === "obsidian";
+  const isEditorial = style === "editorial" || isObsidian;
+  const isFintech = style === "fintech" || style === "modern-saas";
   const isMobile = viewport === "mobile";
   const isTablet = viewport === "tablet";
   const isDesktop = viewport === "desktop";
 
   switch (node.type) {
-    case "page":
+    case "page": {
+      const hasSidebar = (node.children || []).some(
+        (c) => c.type === "sidebar-layout"
+      );
       return (
         <div
           className={cn(
             "h-full min-h-full",
-            // Desktop immersive: no outer padding — theme fills edge to edge
-            isDesktop ? "p-0" : isMobile ? "p-0" : "p-0"
+            // Dashboards fill edge-to-edge; landings keep breathing room
+            hasSidebar ? "p-0" : isMobile ? "px-5 py-6" : "px-10 py-10"
           )}
           style={{
             backgroundColor: "var(--genui-bg)",
-            ...nightSkyBackground(style),
+            ...styleAtmosphere(style),
           }}
         >
           {(node.children || []).map((c) => (
@@ -129,6 +157,7 @@ function NodeBody({
           ))}
         </div>
       );
+    }
     case "stack":
       return (
         <div className={cn("flex flex-col", gapClass(p.gap))}>
@@ -231,8 +260,17 @@ function NodeBody({
       const level = Number(p.level) || 2;
       const text = str(p.text, "Heading");
       const cls = cn(
-        isEditorial ? "font-serif tracking-tight" : "font-semibold tracking-tight",
-        level === 1 && (isMobile ? "text-2xl" : "text-3xl"),
+        isEditorial
+          ? "font-serif tracking-tight"
+          : "font-semibold tracking-tight",
+        level === 1 &&
+          (isObsidian
+            ? isMobile
+              ? "text-3xl leading-[1.1]"
+              : "text-5xl leading-[1.05]"
+            : isMobile
+              ? "text-2xl"
+              : "text-3xl"),
         level === 2 && (isMobile ? "text-lg" : "text-xl"),
         level >= 3 && "text-base"
       );
@@ -262,12 +300,20 @@ function NodeBody({
       return (
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+          className={cn(
+            "inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold transition",
+            isFintech || isObsidian ? "rounded-xl" : "rounded-lg"
+          )}
           style={
             variant === "primary"
               ? {
                   backgroundColor: "var(--genui-accent)",
                   color: isNight ? "#041016" : "#FFFFFF",
+                  boxShadow: isFintech
+                    ? "0 8px 24px rgba(139,92,246,0.25)"
+                    : isObsidian
+                      ? "0 0 24px rgba(34,211,238,0.25)"
+                      : undefined,
                 }
               : variant === "secondary"
                 ? {
@@ -277,7 +323,9 @@ function NodeBody({
                   }
                 : {
                     backgroundColor: "transparent",
-                    color: "var(--genui-muted)",
+                    color: isObsidian ? "var(--genui-accent)" : "var(--genui-muted)",
+                    textDecoration: isObsidian ? "underline" : undefined,
+                    textUnderlineOffset: isObsidian ? "6px" : undefined,
                   }
           }
         >
@@ -290,8 +338,10 @@ function NodeBody({
         <div
           className={cn(
             "p-4",
-            isEditorial ? "rounded-none" : "rounded-xl",
-            isNight && "shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_12px_40px_rgba(0,0,0,0.35)]"
+            style === "editorial" ? "rounded-none" : "rounded-2xl",
+            isNight &&
+              "shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_12px_40px_rgba(0,0,0,0.35)]",
+            isFintech && "shadow-[0_8px_30px_rgba(15,23,42,0.04)]"
           )}
           style={{
             backgroundColor: "var(--genui-card)",
@@ -325,8 +375,9 @@ function NodeBody({
       return (
         <div
           className={cn(
-            "rounded-xl p-4",
-            isNight && "shadow-[0_0_24px_rgba(34,211,238,0.06)]"
+            "rounded-2xl p-4",
+            isNight && "shadow-[0_0_24px_rgba(34,211,238,0.06)]",
+            isFintech && "shadow-[0_10px_30px_rgba(124,58,237,0.06)]"
           )}
           style={{
             backgroundColor: "var(--genui-card)",
@@ -345,14 +396,14 @@ function NodeBody({
             {str(p.title, "Metric")}
           </p>
           <p
-            className="mt-2 text-2xl font-bold tracking-tight"
+            className="mt-2 text-2xl font-bold tracking-tight tabular-nums"
             style={{ color: accentColor || "var(--genui-text)" }}
           >
             {str(p.value, "—")}
           </p>
           {p.delta ? (
             <p
-              className="mt-1 text-xs font-medium"
+              className="mt-1 text-xs font-semibold"
               style={{ color: deltaColor }}
             >
               {deltaRaw}
@@ -402,16 +453,24 @@ function NodeBody({
           src={
             str(
               p.src,
-              isNight
-                ? "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1200&q=80"
-                : "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80"
+              isObsidian
+                ? "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=80"
+                : isNight
+                  ? "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1200&q=80"
+                  : "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80"
             )
           }
           alt={str(p.alt, "")}
-          className="h-auto w-full rounded-xl object-cover"
+          className={cn(
+            "h-auto w-full object-cover",
+            isObsidian ? "rounded-none" : "rounded-2xl"
+          )}
           style={{
-            aspectRatio: str(p.aspect, "16/9"),
-            border: "1px solid var(--genui-border)",
+            aspectRatio: str(p.aspect, isObsidian ? "21/9" : "16/9"),
+            border: isObsidian ? "none" : "1px solid var(--genui-border)",
+            boxShadow: isObsidian
+              ? "0 30px 80px rgba(0,0,0,0.45)"
+              : undefined,
           }}
         />
       );
@@ -430,11 +489,30 @@ function NodeBody({
         : ["Home", "Product"];
       return (
         <nav
-          className="flex flex-wrap gap-3 text-sm font-medium"
+          className={cn(
+            "flex flex-wrap text-sm font-medium",
+            isFintech ? "flex-col gap-1" : "gap-3"
+          )}
           style={{ color: "var(--genui-muted)" }}
         >
-          {items.map((item) => (
-            <span key={item} style={{ color: "var(--genui-muted)" }}>
+          {items.map((item, idx) => (
+            <span
+              key={item}
+              className={cn(
+                isFintech && "rounded-xl px-3 py-2",
+                idx === 0 && isFintech && "font-semibold text-white"
+              )}
+              style={{
+                color:
+                  idx === 0
+                    ? isFintech
+                      ? "#FFFFFF"
+                      : "var(--genui-accent)"
+                    : "var(--genui-muted)",
+                backgroundColor:
+                  idx === 0 && isFintech ? "var(--genui-accent)" : undefined,
+              }}
+            >
               {item}
             </span>
           ))}
@@ -459,11 +537,15 @@ function NodeBody({
     case "chart": {
       const points = numArr(p.points);
       const data = points.map((v, i) => ({ name: `W${i + 1}`, value: v }));
-      const chartType = str(p.chartType, "line");
+      const chartType = str(p.chartType, isFintech ? "area" : "line");
       const stroke = str(p.accentColor) || accent;
+      const gradId = `genui-fill-${node.id}`;
       return (
         <div
-          className="rounded-xl p-4"
+          className={cn(
+            "rounded-2xl p-4",
+            isFintech && "shadow-[0_10px_30px_rgba(124,58,237,0.06)]"
+          )}
           style={{
             backgroundColor: "var(--genui-card)",
             border: "1px solid var(--genui-border)",
@@ -475,15 +557,34 @@ function NodeBody({
           >
             {str(p.title, "Chart")}
           </p>
-          <div className="h-48 w-full">
+          <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === "bar" ? (
                 <BarChart data={data}>
                   <XAxis dataKey="name" hide />
                   <YAxis hide />
                   <Tooltip />
-                  <Bar dataKey="value" fill={stroke} radius={4} />
+                  <Bar dataKey="value" fill={stroke} radius={6} />
                 </BarChart>
+              ) : chartType === "area" ? (
+                <AreaChart data={data}>
+                  <defs>
+                    <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={stroke} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="name" hide />
+                  <YAxis hide />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={stroke}
+                    strokeWidth={2.5}
+                    fill={`url(#${gradId})`}
+                  />
+                </AreaChart>
               ) : (
                 <LineChart data={data}>
                   <XAxis dataKey="name" hide />
@@ -493,7 +594,7 @@ function NodeBody({
                     type="monotone"
                     dataKey="value"
                     stroke={stroke}
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     dot={false}
                   />
                 </LineChart>

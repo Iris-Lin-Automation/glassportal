@@ -5,11 +5,13 @@ export function intentSystemPrompt() {
   return `You are a Design Intent Parser for a Generative UI workbench.
 Extract a structured design brief from the user prompt.
 Return ONLY a JSON object with keys:
-pageType (string), style (one of: minimal | modern-saas | editorial | night-sky),
+pageType (string), style (one of: minimal | modern-saas | editorial | night-sky | obsidian | fintech),
 layout (string), components (string array), colorTone (string optional),
 responsive (string optional), audience (string optional), rawSummary (string).
 If style is unclear, default to "modern-saas".
-If user asks for dark / geek / night / cyber / neon, use style "night-sky".`;
+If user asks for dark / geek / night / cyber / neon / Claude Design, use style "night-sky".
+If user asks for cinematic / agency / brand studio / Obsidian / ink black / electric cyan hero, use style "obsidian".
+If user asks for crypto / wallet / trading / fintech / purple dashboard, use style "fintech".`;
 }
 
 export function generateSystemPrompt(style: GenuiStyle) {
@@ -33,7 +35,7 @@ Props conventions:
 - text: { text, muted?: boolean }
 - button: { label, variant?: "primary"|"secondary"|"ghost" }
 - kpi-card: { title, value, delta?: string }
-- chart: { title, chartType?: "line"|"bar", points?: number[] }
+- chart: { title, chartType?: "line"|"bar"|"area", points?: number[] }
 - table: { title, columns: string[], rows: string[][] }
 - nav: { items: string[] }
 - image: { src?: string, alt?: string, aspect?: string }
@@ -44,11 +46,13 @@ Props conventions:
 
 Style "${style}" rules:
 - minimal: lots of whitespace, slate neutrals, thin borders, restrained type
-- modern-saas: indigo/sky accents, KPI row, clean cards, product UI density
-- editorial: serif-feeling headings via tracking, large title, story sections, fewer cards
-- night-sky: dark geek / night-sky dashboard feel — deep navy page, glassy dark cards, cyan accent, luminous KPI numbers, denser product UI. Prefer sidebar-layout + kpi-card + chart + table when building dashboards.
+- modern-saas: violet accents, soft cards, KPI row, area chart, polished product density
+- editorial: serif-feeling headings, large title, story sections, fewer cards, strong cover image
+- night-sky: dark product studio (Claude Design-like) — ink/black panels, emerald primary CTAs, soft violet glow, high-contrast white headings, KPI + chart + feature cards
+- obsidian: cinematic agency landing — matte ink black, electric cyan accents, huge serif H1, full-bleed hero image, sparse CTAs, premium brand studio vibe (NOT a dense dashboard unless asked)
+- fintech: bright CryptoHub-like dashboard — white canvas, purple accent, sidebar with active item, 3–4 KPI cards, area chart, trading/portfolio copy
 
-Build a COMPLETE page matching the intent. Use unique string ids. Keep under 60 nodes.`;
+Build a COMPLETE, visually premium page matching the intent. Prefer strong hierarchy and breathing room. Use unique string ids. Keep under 60 nodes.`;
 }
 
 export function buildGenerateUserPrompt(

@@ -18,6 +18,257 @@ export function buildFixtureSchema(
         ? "Product Detail"
         : "Product Landing";
 
+  if (style === "night-sky" && intent.pageType === "landing") {
+    return {
+      version: 1,
+      meta: {
+        title: "Acme Studio",
+        pageType: "landing",
+        style: "night-sky",
+        description: "Dark product studio landing fixture",
+      },
+      root: {
+        id: nid("page"),
+        type: "page",
+        props: { theme: "night-sky" },
+        children: [
+          {
+            id: nid("hero"),
+            type: "stack",
+            props: { gap: "lg" },
+            children: [
+              {
+                id: nid("top"),
+                type: "row",
+                props: { gap: "md" },
+                children: [
+                  {
+                    id: nid("brand"),
+                    type: "heading",
+                    props: { text: "Acme Studio", level: 3 },
+                  },
+                  {
+                    id: nid("nav"),
+                    type: "nav",
+                    props: {
+                      items: ["Product", "Pricing", "Docs", "Contact"],
+                    },
+                  },
+                ],
+              },
+              {
+                id: nid("badge"),
+                type: "badge",
+                props: { text: "Design system", tone: "neutral" },
+              },
+              {
+                id: nid("h1"),
+                type: "heading",
+                props: {
+                  text: "Build digital products faster, together",
+                  level: 1,
+                },
+              },
+              {
+                id: nid("lead"),
+                type: "text",
+                props: {
+                  text: "Ship polished interfaces with emerald CTAs, violet glow accents, and a critique-ready design loop.",
+                  muted: true,
+                },
+              },
+              {
+                id: nid("ctas"),
+                type: "row",
+                props: { gap: "md" },
+                children: [
+                  {
+                    id: nid("b1"),
+                    type: "button",
+                    props: {
+                      label: "Get started for free",
+                      variant: "primary",
+                    },
+                  },
+                  {
+                    id: nid("b2"),
+                    type: "button",
+                    props: { label: "Book a demo", variant: "secondary" },
+                  },
+                ],
+              },
+              {
+                id: nid("img"),
+                type: "image",
+                props: {
+                  alt: "Product dashboard preview",
+                  aspect: "16/9",
+                  src: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1600&q=80",
+                },
+              },
+              {
+                id: nid("features"),
+                type: "grid",
+                props: { columns: 3, gap: "md" },
+                children: [
+                  {
+                    id: nid("f1"),
+                    type: "card",
+                    children: [
+                      {
+                        id: nid("f1h"),
+                        type: "heading",
+                        props: { text: "Components", level: 3 },
+                      },
+                      {
+                        id: nid("f1t"),
+                        type: "text",
+                        props: {
+                          text: "Buttons, cards, badges, and navs with consistent radius and borders.",
+                          muted: true,
+                        },
+                      },
+                    ],
+                  },
+                  {
+                    id: nid("f2"),
+                    type: "card",
+                    children: [
+                      {
+                        id: nid("f2h"),
+                        type: "heading",
+                        props: { text: "Critique", level: 3 },
+                      },
+                      {
+                        id: nid("f2t"),
+                        type: "text",
+                        props: {
+                          text: "Contrast, hierarchy, and spacing scored so revisions stay intentional.",
+                          muted: true,
+                        },
+                      },
+                    ],
+                  },
+                  {
+                    id: nid("f3"),
+                    type: "card",
+                    children: [
+                      {
+                        id: nid("f3h"),
+                        type: "heading",
+                        props: { text: "Export", level: 3 },
+                      },
+                      {
+                        id: nid("f3t"),
+                        type: "text",
+                        props: {
+                          text: "Schema-first output you can inspect, revise, and ship.",
+                          muted: true,
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  if (style === "obsidian") {
+    return {
+      version: 1,
+      meta: {
+        title: "Obsidian Digital",
+        pageType: "landing",
+        style: "obsidian",
+        description: "Cinematic agency landing fixture",
+      },
+      root: {
+        id: nid("page"),
+        type: "page",
+        props: { theme: "obsidian" },
+        children: [
+          {
+            id: nid("hero"),
+            type: "stack",
+            props: { gap: "lg" },
+            children: [
+              {
+                id: nid("top"),
+                type: "row",
+                props: { gap: "md" },
+                children: [
+                  {
+                    id: nid("brand"),
+                    type: "heading",
+                    props: { text: "OBSIDIAN", level: 3 },
+                  },
+                  {
+                    id: nid("nav"),
+                    type: "nav",
+                    props: {
+                      items: ["About", "Services", "Portfolio", "Contact"],
+                    },
+                  },
+                ],
+              },
+              {
+                id: nid("img"),
+                type: "image",
+                props: {
+                  alt: "Cinematic cover",
+                  aspect: "21/9",
+                  src: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=80",
+                },
+              },
+              {
+                id: nid("badge"),
+                type: "badge",
+                props: { text: "Brand studio", tone: "neutral" },
+              },
+              {
+                id: nid("h1"),
+                type: "heading",
+                props: {
+                  text: "Design that commands absolute attention.",
+                  level: 1,
+                },
+              },
+              {
+                id: nid("lead"),
+                type: "text",
+                props: {
+                  text: "We craft high-end interactive experiences for brands that refuse to be ignored.",
+                  muted: true,
+                },
+              },
+              {
+                id: nid("ctas"),
+                type: "row",
+                props: { gap: "md" },
+                children: [
+                  {
+                    id: nid("b1"),
+                    type: "button",
+                    props: { label: "View our work →", variant: "primary" },
+                  },
+                  {
+                    id: nid("b2"),
+                    type: "button",
+                    props: { label: "Book consultation", variant: "ghost" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
   if (style === "editorial") {
     return {
       version: 1,
@@ -171,23 +422,38 @@ export function buildFixtureSchema(
     };
   }
 
-  // modern-saas / night-sky dashboard fixture
-  const dashStyle = style === "night-sky" ? "night-sky" : "modern-saas";
+  // modern-saas / fintech / night-sky dashboard fixture
+  const dashStyle: GenuiStyle =
+    style === "night-sky"
+      ? "night-sky"
+      : style === "fintech"
+        ? "fintech"
+        : "modern-saas";
+  const brand =
+    dashStyle === "night-sky"
+      ? "Acme"
+      : dashStyle === "fintech"
+        ? "CryptoHub"
+        : "Northstar";
   return {
     version: 1,
     meta: {
       title:
         dashStyle === "night-sky"
-          ? "Night Ops Dashboard"
-          : intent.pageType === "dashboard"
-            ? "SaaS Analytics"
-            : title,
+          ? "Product Studio"
+          : dashStyle === "fintech"
+            ? "Portfolio Overview"
+            : intent.pageType === "dashboard"
+              ? "SaaS Analytics"
+              : title,
       pageType: intent.pageType,
       style: dashStyle,
       description:
-        dashStyle === "night-sky"
-          ? "Dark geek / night-sky fixture (incomplete on purpose for Fix demo)"
-          : "Modern SaaS fixture (incomplete on purpose for Fix demo)",
+        dashStyle === "fintech"
+          ? "Fintech dashboard fixture (incomplete on purpose for Fix demo)"
+          : dashStyle === "night-sky"
+            ? "Dark product studio fixture (incomplete on purpose for Fix demo)"
+            : "Modern SaaS fixture (incomplete on purpose for Fix demo)",
     },
     root: {
       id: nid("page"),
@@ -206,16 +472,16 @@ export function buildFixtureSchema(
                 {
                   id: nid("brand"),
                   type: "heading",
-                  props: {
-                    text: dashStyle === "night-sky" ? "Orion" : "Northstar",
-                    level: 3,
-                  },
+                  props: { text: brand, level: 3 },
                 },
                 {
                   id: nid("snav"),
                   type: "nav",
                   props: {
-                    items: ["Overview", "Revenue", "Customers", "Settings"],
+                    items:
+                      dashStyle === "fintech"
+                        ? ["Dashboard", "Portfolio", "Trade", "Markets"]
+                        : ["Overview", "Revenue", "Customers", "Settings"],
                   },
                 },
               ],
@@ -231,52 +497,77 @@ export function buildFixtureSchema(
                   props: {
                     text:
                       dashStyle === "night-sky"
-                        ? "Mission control"
-                        : "Revenue overview",
+                        ? "Build better products"
+                        : dashStyle === "fintech"
+                          ? "Welcome back"
+                          : "Revenue overview",
                     level: 1,
                   },
                 },
                 {
                   id: nid("kpis"),
                   type: "grid",
-                  props: { columns: 3, gap: "md" },
-                  children: [
-                    {
-                      id: nid("k1"),
-                      type: "kpi-card",
-                      props: {
-                        title: "Total Revenue",
-                        value: "$24,800",
-                        delta: "+12.4%",
-                      },
-                    },
-                    {
-                      id: nid("k2"),
-                      type: "kpi-card",
-                      props: {
-                        title: "Active Users",
-                        value: "3,842",
-                        delta: "+4.1%",
-                      },
-                    },
-                    {
-                      id: nid("k3"),
-                      type: "kpi-card",
-                      props: {
-                        title: "Churn",
-                        value: "1.8%",
-                        delta: "-0.3%",
-                      },
-                    },
-                  ],
+                  props: {
+                    columns: dashStyle === "fintech" ? 4 : 3,
+                    gap: "md",
+                  },
+                  children: (
+                    dashStyle === "fintech"
+                      ? [
+                          {
+                            title: "Total Balance",
+                            value: "$124,563",
+                            delta: "+8.2%",
+                          },
+                          {
+                            title: "24h Volume",
+                            value: "$2.4M",
+                            delta: "+3.1%",
+                          },
+                          {
+                            title: "Total Profit",
+                            value: "$18,420",
+                            delta: "+12.4%",
+                          },
+                          {
+                            title: "Active Trades",
+                            value: "24",
+                            delta: "+2",
+                          },
+                        ]
+                      : [
+                          {
+                            title: "Total Revenue",
+                            value: "$24,800",
+                            delta: "+12.4%",
+                          },
+                          {
+                            title: "Active Users",
+                            value: "3,842",
+                            delta: "+4.1%",
+                          },
+                          {
+                            title: "Churn",
+                            value: "1.8%",
+                            delta: "-0.3%",
+                          },
+                        ]
+                  ).map((k, i) => ({
+                    id: nid(`k${i}`),
+                    type: "kpi-card" as const,
+                    props: k,
+                  })),
                 },
                 {
                   id: nid("chart"),
                   type: "chart",
                   props: {
-                    title: "Revenue Overview",
-                    chartType: "line",
-                    points: [12, 18, 15, 22, 28, 26, 34],
+                    title:
+                      dashStyle === "fintech"
+                        ? "Portfolio Performance"
+                        : "Revenue Overview",
+                    chartType: "area",
+                    points: [12, 18, 15, 22, 28, 26, 34, 38, 36, 44],
                   },
                 },
                 // Intentionally omit Recent Transactions table so Critique → Fix

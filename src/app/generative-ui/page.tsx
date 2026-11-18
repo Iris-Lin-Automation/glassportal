@@ -49,7 +49,7 @@ import { makeId } from "@/lib/genui/ids";
 const OWNER_KEY = "glassportal-local";
 
 const SAMPLE_PROMPT =
-  "Create a dark geek night-sky analytics dashboard with a sidebar, KPI cards, revenue chart and recent transactions.";
+  "Create a cinematic Obsidian agency landing with ink-black canvas, electric cyan accents, huge serif headline and a dramatic hero image — or switch style to Fintech / Night Sky for dashboards.";
 
 function GenerativeUiWorkspaceInner() {
   const searchParams = useSearchParams();

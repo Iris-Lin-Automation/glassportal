@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils";
 
 const SWATCH: Record<GenuiStyle, { bg: string; ring: string }> = {
   minimal: { bg: "#F1F5F9", ring: "#94A3B8" },
-  "modern-saas": { bg: "#4F46E5", ring: "#818CF8" },
+  "modern-saas": { bg: "#7C3AED", ring: "#A78BFA" },
   editorial: { bg: "#E7E0D4", ring: "#A8A29E" },
-  "night-sky": { bg: "#0B1224", ring: "#22D3EE" },
+  "night-sky": { bg: "#05070D", ring: "#22D3A1" },
+  obsidian: { bg: "#050505", ring: "#22D3EE" },
+  fintech: { bg: "#8B5CF6", ring: "#C4B5FD" },
 };
 
 /** Compact Figma-like style chips */
