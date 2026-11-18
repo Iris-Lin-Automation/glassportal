@@ -14,6 +14,7 @@ const SWATCH: Record<GenuiStyle, { bg: string; ring: string }> = {
   "night-sky": { bg: "#05070D", ring: "#22D3A1" },
   obsidian: { bg: "#050505", ring: "#22D3EE" },
   fintech: { bg: "#8B5CF6", ring: "#C4B5FD" },
+  pulse: { bg: "#0B0F19", ring: "#A855F7" },
 };
 
 /** Compact Figma-like style chips */

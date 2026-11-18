@@ -5,6 +5,7 @@ import {
   loadRevision,
   loadRun,
 } from "@/lib/genui/stores/run-store";
+import type { BrowserCritiqueFindings } from "@/lib/genui/types";
 import {
   assertGenuiRunOwner,
   guardGenui,
@@ -21,6 +22,8 @@ export async function POST(req: NextRequest) {
       revisionId?: string;
       /** Force rules-only (honest local path) */
       rulesOnly?: boolean;
+      browserFindings?: BrowserCritiqueFindings | null;
+      referenceImages?: Array<{ dataUrl?: string }>;
     };
 
     const revisionId = (body.revisionId || "").trim();
@@ -48,10 +51,29 @@ export async function POST(req: NextRequest) {
       costly: !rulesOnly,
     });
     if (!guard.ok) return guard.response;
-    // Anonymous and signed-in callers may only touch their own runs.
     if (!assertGenuiRunOwner(run.ownerKey, guard.ownerKey)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const browserFindings =
+      body.browserFindings &&
+      typeof body.browserFindings === "object" &&
+      typeof body.browserFindings.containerWidth === "number"
+        ? {
+            viewport: String(body.browserFindings.viewport || "desktop"),
+            containerWidth: Number(body.browserFindings.containerWidth) || 0,
+            containerHeight: Number(body.browserFindings.containerHeight) || 0,
+            overflowNodeIds: Array.isArray(body.browserFindings.overflowNodeIds)
+              ? body.browserFindings.overflowNodeIds.map(String).slice(0, 40)
+              : [],
+            clippedNodeIds: Array.isArray(body.browserFindings.clippedNodeIds)
+              ? body.browserFindings.clippedNodeIds.map(String).slice(0, 40)
+              : [],
+            notes: Array.isArray(body.browserFindings.notes)
+              ? body.browserFindings.notes.map(String).slice(0, 12)
+              : [],
+          }
+        : null;
 
     const critique = await critiqueUiSchema({
       schema: rev.schema,
@@ -59,11 +81,26 @@ export async function POST(req: NextRequest) {
       prompt: rev.promptSnapshot || run.prompt,
       revisionId: rev.id,
       allowLlm: !rulesOnly,
+      browserFindings,
+      referenceImages: Array.isArray(body.referenceImages)
+        ? body.referenceImages
+            .filter((x) => x?.dataUrl?.startsWith("data:image/"))
+            .map((x) => ({ dataUrl: String(x.dataUrl) }))
+            .slice(0, 4)
+        : undefined,
     });
 
-    // Fixture / rulesOnly → still real rules scores (never fake)
     if (rulesOnly) {
-      critique.source = "rules";
+      // Keep browser tag if present; never claim LLM
+      critique.sources = (critique.sources || ["schema-rules"]).filter(
+        (s) => s !== "llm" && s !== "vlm"
+      );
+      if (!critique.sources.includes("schema-rules")) {
+        critique.sources.unshift("schema-rules");
+      }
+      critique.source = critique.sources.includes("browser")
+        ? "rules+browser"
+        : "rules";
       delete critique.model;
     }
 
@@ -75,10 +112,11 @@ export async function POST(req: NextRequest) {
         ...detail,
         meta: {
           source: critique.source,
+          sources: critique.sources,
           note:
             critique.source === "rules"
-              ? "Deterministic rule critique (no LLM scores fabricated)."
-              : "Merged rule + live LLM critique.",
+              ? "Deterministic schema-rule critique (no fabricated LLM/VLM scores)."
+              : `Critique sources: ${critique.sources.join(", ")}.`,
         },
       })
     );

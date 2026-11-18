@@ -31,7 +31,12 @@ import {
   MarkOverlay,
   type MarkStroke,
 } from "@/components/genui/MarkOverlay";
-import { PreviewStage } from "@/components/genui/PreviewStage";
+import {
+  PreviewStage,
+  collectBrowserFindings,
+  type PreviewStageMetrics,
+} from "@/components/genui/PreviewStage";
+import { ReferenceImageInput } from "@/components/genui/ReferenceImageInput";
 import { StylePicker } from "@/components/genui/StylePicker";
 import { SurfaceColors } from "@/components/genui/SurfaceColors";
 import {
@@ -41,6 +46,8 @@ import {
 import type {
   DesignIntent,
   GenerationRun,
+  ReferenceImageInput as RefImage,
+  ReferenceMode,
   RevisionRecord,
   UiSchema,
 } from "@/lib/genui/types";
@@ -49,15 +56,15 @@ import { makeId } from "@/lib/genui/ids";
 const OWNER_KEY = "glassportal-local";
 
 const SAMPLE_PROMPT =
-  "Create a cinematic Obsidian agency landing with ink-black canvas, electric cyan accents, huge serif headline and a dramatic hero image — or switch style to Fintech / Night Sky for dashboards.";
+  "Create a PulseMetrics analytics dashboard with sidebar, search header, 4 KPI cards, Weekly Active Users line chart, Feature Adoption bar chart, and Recent Transactions — dark navy with electric purple accents.";
 
 function GenerativeUiWorkspaceInner() {
   const searchParams = useSearchParams();
   const deepLinkRun = searchParams.get("run");
   const [prompt, setPrompt] = useState(SAMPLE_PROMPT);
-  const [style, setStyle] = useState<GenuiStyle>("night-sky");
+  const [style, setStyle] = useState<GenuiStyle>("pulse");
   const [palette, setPalette] = useState<GenuiPalette>(
-    GENUI_PALETTE_DEFAULTS["night-sky"]
+    GENUI_PALETTE_DEFAULTS.pulse
   );
   const [viewport, setViewport] = useState<GenuiViewport>("desktop");
   const [intent, setIntent] = useState<DesignIntent | null>(null);
@@ -88,7 +95,14 @@ function GenerativeUiWorkspaceInner() {
   const [markStrokes, setMarkStrokes] = useState<MarkStroke[]>([]);
   const [lastChangelog, setLastChangelog] = useState<string[]>([]);
   const [previewFlash, setPreviewFlash] = useState(false);
+  const [referenceImages, setReferenceImages] = useState<RefImage[]>([]);
+  const [referenceMode, setReferenceMode] = useState<ReferenceMode>("full");
+  const [visionHint, setVisionHint] = useState("");
+  const [stageMetrics, setStageMetrics] = useState<PreviewStageMetrics | null>(
+    null
+  );
   const historyRef = useRef<HTMLDivElement>(null);
+  const previewRootRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
   const applyDetail = (json: {
@@ -135,6 +149,13 @@ function GenerativeUiWorkspaceInner() {
           style,
           ownerKey: OWNER_KEY,
           fixture,
+          referenceMode,
+          referenceImages: referenceImages.map((r) => ({
+            id: r.id,
+            dataUrl: r.dataUrl,
+            name: r.name,
+            mimeType: r.mimeType,
+          })),
         }),
       });
       const json = await res.json();
@@ -148,6 +169,7 @@ function GenerativeUiWorkspaceInner() {
         );
       }
       setNote(json.meta?.note || "");
+      setVisionHint(json.vision?.note || "");
       setTab("preview");
       setViewport("desktop");
       // Collapse controls so the generated theme fills the screen
@@ -165,6 +187,13 @@ function GenerativeUiWorkspaceInner() {
     setError("");
     setBusy("critique");
     try {
+      const findings = collectBrowserFindings({
+        root: previewRootRef.current,
+        viewport,
+        stageWidth: stageMetrics?.stageWidth || previewRootRef.current?.clientWidth || 0,
+        stageHeight:
+          stageMetrics?.stageHeight || previewRootRef.current?.clientHeight || 0,
+      });
       const res = await fetch("/api/genui/critique", {
         method: "POST",
         credentials: "include",
@@ -172,6 +201,10 @@ function GenerativeUiWorkspaceInner() {
         body: JSON.stringify({
           revisionId: revision.id,
           rulesOnly: run?.model.mode === "fixture",
+          browserFindings: findings,
+          referenceImages: referenceImages.map((r) => ({
+            dataUrl: r.dataUrl,
+          })),
         }),
       });
       const json = await res.json();
@@ -321,12 +354,23 @@ function GenerativeUiWorkspaceInner() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, style }),
+        body: JSON.stringify({
+          prompt,
+          style,
+          referenceMode,
+          referenceImages: referenceImages.map((r) => ({
+            id: r.id,
+            dataUrl: r.dataUrl,
+            name: r.name,
+            mimeType: r.mimeType,
+          })),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Intent parse failed");
       setIntent(json.intent);
       setIntentSource(json.source);
+      setVisionHint(json.vision?.note || "");
       setTab("intent");
       setPanelOpen(true);
     } catch (e) {
@@ -565,109 +609,125 @@ function GenerativeUiWorkspaceInner() {
       </header>
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {/* LEFT prompt panel — slides away after generate */}
+        {/* LEFT prompt panel — flex sibling so preview ResizeObserver reflows */}
         <aside
-          className={`absolute inset-y-0 left-0 z-20 flex w-[300px] flex-col border-r border-slate-200/80 bg-white shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            panelOpen ? "translate-x-0" : "-translate-x-full"
+          className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white transition-[width] duration-300 ease-out ${
+            panelOpen ? "w-[300px]" : "w-0 border-r-0"
           }`}
+          aria-hidden={!panelOpen}
         >
-          <div className="flex-1 space-y-3 overflow-y-auto p-3">
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Prompt
-              </p>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={6}
-                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-1 focus:ring-slate-300"
-                placeholder="Describe the UI…"
-              />
-            </div>
-
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Style
-              </p>
-              <StylePicker value={style} onChange={applyStyle} />
-            </div>
-
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Surfaces
-              </p>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-                <SurfaceColors
-                  palette={palette}
-                  onChange={setPalette}
-                  onReset={() => setPalette(GENUI_PALETTE_DEFAULTS[style])}
+          <div
+            className={`flex h-full w-[300px] flex-col ${
+              panelOpen ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+          >
+            <div className="flex-1 space-y-3 overflow-y-auto p-3">
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Prompt
+                </p>
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  rows={5}
+                  className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-1 focus:ring-slate-300"
+                  placeholder="Describe the UI…"
                 />
               </div>
+
+              <ReferenceImageInput
+                images={referenceImages}
+                mode={referenceMode}
+                onImagesChange={setReferenceImages}
+                onModeChange={setReferenceMode}
+                visionHint={visionHint || undefined}
+              />
+
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Style
+                </p>
+                <StylePicker value={style} onChange={applyStyle} />
+              </div>
+
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Surfaces
+                </p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                  <SurfaceColors
+                    palette={palette}
+                    onChange={setPalette}
+                    onReset={() => setPalette(GENUI_PALETTE_DEFAULTS[style])}
+                  />
+                </div>
+              </div>
+
+              {error ? (
+                <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+                  {error}
+                </p>
+              ) : null}
+              {note ? (
+                <p className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-500">
+                  {note}
+                </p>
+              ) : null}
+              {stageMetrics ? (
+                <p className="text-[10px] text-slate-400">
+                  Preview artboard: {Math.round(stageMetrics.artboardWidth)}×
+                  {Math.round(stageMetrics.artboardHeight)}px ·{" "}
+                  {stageMetrics.viewport}
+                  {stageMetrics.scale < 0.999
+                    ? ` · ${Math.round(stageMetrics.scale * 100)}%`
+                    : ""}
+                </p>
+              ) : null}
             </div>
 
-            {error ? (
-              <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
-                {error}
-              </p>
-            ) : null}
-            {note ? (
-              <p className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-500">
-                {note}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="shrink-0 space-y-1.5 border-t border-slate-200 p-3">
-            <button
-              type="button"
-              disabled={!!busy || !prompt.trim()}
-              onClick={() => void onGenerate(false)}
-              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 text-[12px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              {busy === "generate" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              Generate
-            </button>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="shrink-0 space-y-1.5 border-t border-slate-200 p-3">
               <button
                 type="button"
                 disabled={!!busy || !prompt.trim()}
-                onClick={() => void onGenerate(true)}
-                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => void onGenerate(false)}
+                className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 text-[12px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
               >
-                {busy === "fixture" ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : null}
-                Sample
+                {busy === "generate" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                Generate
               </button>
-              <button
-                type="button"
-                disabled={!!busy || !prompt.trim()}
-                onClick={() => void onParseIntent()}
-                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {busy === "intent" ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : null}
-                Intent
-              </button>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  disabled={!!busy || !prompt.trim()}
+                  onClick={() => void onGenerate(true)}
+                  className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {busy === "fixture" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : null}
+                  Sample
+                </button>
+                <button
+                  type="button"
+                  disabled={!!busy || !prompt.trim()}
+                  onClick={() => void onParseIntent()}
+                  className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {busy === "intent" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : null}
+                  Intent
+                </button>
+              </div>
             </div>
           </div>
         </aside>
 
-        {panelOpen ? (
-          <button
-            type="button"
-            aria-label="Close prompt panel"
-            className="absolute inset-0 z-10 bg-slate-900/20 transition-opacity duration-500"
-            onClick={() => setPanelOpen(false)}
-          />
-        ) : null}
-
-        {/* RIGHT — generated theme fills this stage */}
+        {/* RIGHT — generated theme fills remaining width after panel reflow */}
         <section
           className={`relative z-0 flex min-h-0 min-w-0 flex-1 flex-col ${
             immersive ? "h-full bg-transparent" : "bg-slate-100"
@@ -717,13 +777,19 @@ function GenerativeUiWorkspaceInner() {
                   Rendering…
                 </div>
               ) : previewSchema ? (
-                <PreviewStage viewport={viewport} className="h-full w-full">
-                  <UiSchemaRenderer
-                    schema={previewSchema}
-                    palette={palette}
+                <div ref={previewRootRef} className="h-full w-full min-w-0">
+                  <PreviewStage
                     viewport={viewport}
-                  />
-                </PreviewStage>
+                    className="h-full w-full"
+                    onMetrics={setStageMetrics}
+                  >
+                    <UiSchemaRenderer
+                      schema={previewSchema}
+                      palette={palette}
+                      viewport={viewport}
+                    />
+                  </PreviewStage>
+                </div>
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-slate-400">
                   Write a prompt, then Generate
@@ -751,14 +817,20 @@ function GenerativeUiWorkspaceInner() {
                         : ""
                     }`}
                   >
-                    <PreviewStage viewport={viewport} className="h-full w-full">
-                      <UiSchemaRenderer
-                        schema={previewSchema}
-                        palette={palette}
+                    <div ref={previewRootRef} className="h-full w-full min-w-0">
+                      <PreviewStage
                         viewport={viewport}
-                        annotateEnabled={false}
-                      />
-                    </PreviewStage>
+                        className="h-full w-full"
+                        onMetrics={setStageMetrics}
+                      >
+                        <UiSchemaRenderer
+                          schema={previewSchema}
+                          palette={palette}
+                          viewport={viewport}
+                          annotateEnabled={false}
+                        />
+                      </PreviewStage>
+                    </div>
                     <MarkOverlay
                       enabled={annotateMode}
                       strokes={markStrokes}

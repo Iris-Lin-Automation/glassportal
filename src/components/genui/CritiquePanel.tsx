@@ -22,12 +22,12 @@ import type { GenuiAnnotateTarget } from "@/components/genui/UiSchemaRenderer";
 import { cn } from "@/lib/utils";
 
 const LABELS: Record<CritiqueDimension, string> = {
-  layout: "Layout",
-  hierarchy: "Hierarchy",
-  spacing: "Spacing",
-  typography: "Typography",
-  color: "Color",
-  completeness: "Completeness",
+  requirementCoverage: "Requirement Coverage",
+  componentCompleteness: "Component Completeness",
+  layoutQuality: "Layout Quality",
+  visualHierarchy: "Visual Hierarchy",
+  styleConsistency: "Style Consistency",
+  responsiveBehavior: "Responsive Behavior",
 };
 
 export type HumanPin = GenuiAnnotateTarget & {
@@ -305,36 +305,49 @@ export function CritiquePanel({
             </button>
             {showAuto ? (
               <div className="space-y-2 border-t border-slate-100 px-2 py-2">
+                <p className="text-[10px] font-medium text-slate-400">
+                  Sources:{" "}
+                  {(critique.sources || [critique.source]).join(" · ")}
+                </p>
                 <p className="text-[11px] leading-relaxed text-slate-600">
                   {critique.summary}
                 </p>
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                <div className="grid grid-cols-1 gap-y-1">
                   {(Object.keys(LABELS) as CritiqueDimension[]).map((d) => (
                     <div
                       key={d}
-                      className="flex items-center justify-between text-[10px]"
+                      className="flex items-center justify-between gap-2 text-[10px]"
                     >
-                      <span className="text-slate-500">{LABELS[d]}</span>
-                      <span className="font-semibold tabular-nums text-slate-800">
-                        {critique.scores[d].toFixed(1)}
+                      <span className="min-w-0 truncate text-slate-500">
+                        {LABELS[d]}
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums text-slate-800">
+                        {typeof critique.scores?.[d] === "number"
+                          ? critique.scores[d].toFixed(1)
+                          : "—"}
                       </span>
                     </div>
                   ))}
                 </div>
-                {critique.issues.slice(0, 4).map((issue, i) => (
+                {critique.issues.slice(0, 6).map((issue, i) => (
                   <p
                     key={`${issue.dimension}-${i}`}
                     className="text-[10px] leading-snug text-slate-600"
                   >
                     <span className="font-semibold text-slate-800">
-                      {LABELS[issue.dimension]}:
-                    </span>{" "}
-                    {issue.message}
+                      {LABELS[issue.dimension] || issue.dimension}
+                    </span>
+                    {issue.source ? (
+                      <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] font-medium uppercase tracking-wide text-slate-500">
+                        {issue.source}
+                      </span>
+                    ) : null}
+                    : {issue.message}
                   </p>
                 ))}
                 {previousRevision && previousCritique ? (
                   <p className="text-[10px] text-slate-500">
-                    vs previous{" "}
+                    vs previous revision{" "}
                     <span
                       className={cn(
                         "font-semibold",
@@ -348,6 +361,8 @@ export function CritiquePanel({
                         : ""}
                       {(critique.overall - previousCritique.overall).toFixed(1)}
                     </span>
+                    {" · "}
+                    versions kept in history
                   </p>
                 ) : null}
               </div>

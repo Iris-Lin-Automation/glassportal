@@ -97,6 +97,15 @@ function styleAtmosphere(style: GenuiStyle): CSSProperties | undefined {
     `,
     };
   }
+  if (style === "pulse") {
+    return {
+      backgroundImage: `
+      radial-gradient(900px 420px at 85% 0%, rgba(168,85,247,0.18), transparent 55%),
+      radial-gradient(700px 380px at 10% 100%, rgba(56,189,248,0.08), transparent 50%),
+      linear-gradient(180deg, #0B0F19 0%, #0A0E16 100%)
+    `,
+    };
+  }
   if (style === "fintech" || style === "modern-saas") {
     return {
       backgroundImage: `
@@ -124,7 +133,9 @@ function NodeBody({
   const isNight = isDarkGenuiStyle(style);
   const isObsidian = style === "obsidian";
   const isEditorial = style === "editorial" || isObsidian;
-  const isFintech = style === "fintech" || style === "modern-saas";
+  const isFintech =
+    style === "fintech" || style === "modern-saas" || style === "pulse";
+  const isPulse = style === "pulse";
   const isMobile = viewport === "mobile";
   const isTablet = viewport === "tablet";
   const isDesktop = viewport === "desktop";
@@ -302,18 +313,25 @@ function NodeBody({
           type="button"
           className={cn(
             "inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold transition",
-            isFintech || isObsidian ? "rounded-xl" : "rounded-lg"
+            isFintech || isObsidian || isPulse ? "rounded-xl" : "rounded-lg"
           )}
           style={
             variant === "primary"
               ? {
                   backgroundColor: "var(--genui-accent)",
-                  color: isNight ? "#041016" : "#FFFFFF",
-                  boxShadow: isFintech
-                    ? "0 8px 24px rgba(139,92,246,0.25)"
-                    : isObsidian
-                      ? "0 0 24px rgba(34,211,238,0.25)"
-                      : undefined,
+                  color:
+                    isPulse || style === "fintech" || style === "modern-saas"
+                      ? "#FFFFFF"
+                      : isNight
+                        ? "#041016"
+                        : "#FFFFFF",
+                  boxShadow: isPulse
+                    ? "0 8px 28px rgba(168,85,247,0.35)"
+                    : isFintech
+                      ? "0 8px 24px rgba(139,92,246,0.25)"
+                      : isObsidian
+                        ? "0 0 24px rgba(34,211,238,0.25)"
+                        : undefined,
                 }
               : variant === "secondary"
                 ? {

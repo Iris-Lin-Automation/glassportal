@@ -177,12 +177,12 @@ export type ExportRecord = {
   status: string;
   source: string;
   overall: number | null;
-  layout: number | null;
-  hierarchy: number | null;
-  spacing: number | null;
-  typography: number | null;
-  color: number | null;
-  completeness: number | null;
+  requirementCoverage: number | null;
+  componentCompleteness: number | null;
+  layoutQuality: number | null;
+  visualHierarchy: number | null;
+  styleConsistency: number | null;
+  responsiveBehavior: number | null;
   issueCount: number;
   critiqueSource: string | null;
   parentRevisionId: string | null;
@@ -210,12 +210,12 @@ export async function buildExportRecords(opts?: {
         status: run.status,
         source: rev.source,
         overall: c?.overall ?? null,
-        layout: c?.scores.layout ?? null,
-        hierarchy: c?.scores.hierarchy ?? null,
-        spacing: c?.scores.spacing ?? null,
-        typography: c?.scores.typography ?? null,
-        color: c?.scores.color ?? null,
-        completeness: c?.scores.completeness ?? null,
+        requirementCoverage: c?.scores?.requirementCoverage ?? null,
+        componentCompleteness: c?.scores?.componentCompleteness ?? null,
+        layoutQuality: c?.scores?.layoutQuality ?? null,
+        visualHierarchy: c?.scores?.visualHierarchy ?? null,
+        styleConsistency: c?.scores?.styleConsistency ?? null,
+        responsiveBehavior: c?.scores?.responsiveBehavior ?? null,
         issueCount: c?.issues.length ?? 0,
         critiqueSource: c?.source ?? null,
         parentRevisionId: rev.parentRevisionId || null,
@@ -227,7 +227,7 @@ export async function buildExportRecords(opts?: {
 
 export function recordsToCsv(rows: ExportRecord[]) {
   if (!rows.length) {
-    return "runId,revisionId,createdAt,prompt,style,model,mode,status,source,overall,layout,hierarchy,spacing,typography,color,completeness,issueCount,critiqueSource,parentRevisionId\n";
+    return "runId,revisionId,createdAt,prompt,style,model,mode,status,source,overall,requirementCoverage,componentCompleteness,layoutQuality,visualHierarchy,styleConsistency,responsiveBehavior,issueCount,critiqueSource,parentRevisionId\n";
   }
   const keys = Object.keys(rows[0]) as (keyof ExportRecord)[];
   const esc = (v: unknown) => {

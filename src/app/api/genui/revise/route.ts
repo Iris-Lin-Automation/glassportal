@@ -45,7 +45,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    const useLocal = Boolean(body.local) || run.model.mode === "fixture";
+    // Prefer LLM when client asks for it (e.g. fixture + human notes).
+    // Only force local when body.local === true, or fixture with empty notes.
+    const notesTrim = (body.notes || "").trim();
+    const useLocal =
+      body.local === true ||
+      (run.model.mode === "fixture" && !notesTrim && body.local !== false);
     const guard = guardGenui(req, {
       allowAnonymousFixture: true,
       fixture: useLocal,
@@ -63,7 +68,7 @@ export async function POST(req: NextRequest) {
         intent: parent.intentSnapshot,
         prompt: parent.promptSnapshot || run.prompt,
         revisionId: parent.id,
-        allowLlm: !body.local && run.model.mode !== "fixture",
+        allowLlm: !useLocal,
       });
     }
 

@@ -7,6 +7,7 @@ export const GENUI_STYLES = [
   "night-sky",
   "obsidian",
   "fintech",
+  "pulse",
 ] as const;
 export type GenuiStyle = (typeof GENUI_STYLES)[number];
 
@@ -17,6 +18,7 @@ export const GENUI_STYLE_LABELS: Record<GenuiStyle, string> = {
   "night-sky": "Night Sky",
   obsidian: "Obsidian",
   fintech: "Fintech",
+  pulse: "Pulse",
 };
 
 /** Separately tunable surface colors (bg / card / table). */
@@ -88,6 +90,16 @@ export const GENUI_PALETTE_DEFAULTS: Record<GenuiStyle, GenuiPalette> = {
     accent: "#8B5CF6",
     border: "#E9E4F5",
   },
+  /** Dark analytics — navy charcoal + electric purple (PulseMetrics-like) */
+  pulse: {
+    background: "#0B0F19",
+    card: "#141A26",
+    table: "#101622",
+    text: "#F3F4F6",
+    muted: "#9CA3AF",
+    accent: "#A855F7",
+    border: "#243044",
+  },
 };
 
 export const GENUI_VIEWPORTS = ["desktop", "tablet", "mobile"] as const;
@@ -107,6 +119,15 @@ export function getGenuiModel() {
   return (process.env.GENUI_MODEL || "openai/gpt-oss-20b").trim();
 }
 
+/** Optional vision-capable model; falls back to text model when unset. */
+export function getGenuiVisionModel() {
+  return (
+    process.env.GENUI_VISION_MODEL ||
+    process.env.GENUI_MODEL ||
+    "openai/gpt-oss-20b"
+  ).trim();
+}
+
 export function getOpenAiBaseUrl() {
   return (
     process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"
@@ -116,7 +137,13 @@ export function getOpenAiBaseUrl() {
 export const GENUI_MAX_SCHEMA_DEPTH = 8;
 export const GENUI_MAX_NODES = 80;
 export const GENUI_RUN_INDEX_LIMIT = 100;
+export const GENUI_MAX_REFERENCE_IMAGES = 4;
+export const GENUI_MAX_REFERENCE_BYTES = 1_800_000;
 
 export function isDarkGenuiStyle(style: GenuiStyle) {
-  return style === "night-sky" || style === "obsidian";
+  return (
+    style === "night-sky" ||
+    style === "obsidian" ||
+    style === "pulse"
+  );
 }

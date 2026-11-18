@@ -422,19 +422,24 @@ export function buildFixtureSchema(
     };
   }
 
-  // modern-saas / fintech / night-sky dashboard fixture
+  // modern-saas / fintech / night-sky / pulse dashboard fixture
   const dashStyle: GenuiStyle =
     style === "night-sky"
       ? "night-sky"
       : style === "fintech"
         ? "fintech"
-        : "modern-saas";
+        : style === "pulse"
+          ? "pulse"
+          : "modern-saas";
   const brand =
     dashStyle === "night-sky"
       ? "Acme"
       : dashStyle === "fintech"
         ? "CryptoHub"
-        : "Northstar";
+        : dashStyle === "pulse"
+          ? "PulseMetrics"
+          : "Northstar";
+  const fourCol = dashStyle === "fintech" || dashStyle === "pulse";
   return {
     version: 1,
     meta: {
@@ -443,17 +448,21 @@ export function buildFixtureSchema(
           ? "Product Studio"
           : dashStyle === "fintech"
             ? "Portfolio Overview"
-            : intent.pageType === "dashboard"
-              ? "SaaS Analytics"
-              : title,
-      pageType: intent.pageType,
+            : dashStyle === "pulse"
+              ? "Analytics Overview"
+              : intent.pageType === "dashboard"
+                ? "SaaS Analytics"
+                : title,
+      pageType: intent.pageType === "landing" ? "dashboard" : intent.pageType,
       style: dashStyle,
       description:
         dashStyle === "fintech"
           ? "Fintech dashboard fixture (incomplete on purpose for Fix demo)"
           : dashStyle === "night-sky"
             ? "Dark product studio fixture (incomplete on purpose for Fix demo)"
-            : "Modern SaaS fixture (incomplete on purpose for Fix demo)",
+            : dashStyle === "pulse"
+              ? "PulseMetrics-like dark purple analytics fixture (incomplete for Fix demo)"
+              : "Modern SaaS fixture (incomplete on purpose for Fix demo)",
     },
     root: {
       id: nid("page"),
@@ -481,7 +490,9 @@ export function buildFixtureSchema(
                     items:
                       dashStyle === "fintech"
                         ? ["Dashboard", "Portfolio", "Trade", "Markets"]
-                        : ["Overview", "Revenue", "Customers", "Settings"],
+                        : dashStyle === "pulse"
+                          ? ["Dashboard", "Users", "Analytics", "Reports"]
+                          : ["Overview", "Revenue", "Customers", "Settings"],
                   },
                 },
               ],
@@ -492,23 +503,52 @@ export function buildFixtureSchema(
               props: { gap: "md" },
               children: [
                 {
-                  id: nid("h1"),
-                  type: "heading",
-                  props: {
-                    text:
-                      dashStyle === "night-sky"
-                        ? "Build better products"
-                        : dashStyle === "fintech"
-                          ? "Welcome back"
-                          : "Revenue overview",
-                    level: 1,
-                  },
+                  id: nid("header"),
+                  type: "row",
+                  props: { gap: "md" },
+                  children: [
+                    {
+                      id: nid("h1"),
+                      type: "heading",
+                      props: {
+                        text:
+                          dashStyle === "night-sky"
+                            ? "Build better products"
+                            : dashStyle === "fintech"
+                              ? "Welcome back"
+                              : dashStyle === "pulse"
+                                ? "Dashboard"
+                                : "Revenue overview",
+                        level: 1,
+                      },
+                    },
+                    ...(dashStyle === "pulse"
+                      ? [
+                          {
+                            id: nid("search"),
+                            type: "input" as const,
+                            props: {
+                              label: "Search",
+                              placeholder: "Search users, metrics, reports...",
+                            },
+                          },
+                          {
+                            id: nid("cta"),
+                            type: "button" as const,
+                            props: {
+                              label: "Generate Report",
+                              variant: "primary",
+                            },
+                          },
+                        ]
+                      : []),
+                  ],
                 },
                 {
                   id: nid("kpis"),
                   type: "grid",
                   props: {
-                    columns: dashStyle === "fintech" ? 4 : 3,
+                    columns: fourCol ? 4 : 3,
                     gap: "md",
                   },
                   children: (
@@ -535,23 +575,46 @@ export function buildFixtureSchema(
                             delta: "+2",
                           },
                         ]
-                      : [
-                          {
-                            title: "Total Revenue",
-                            value: "$24,800",
-                            delta: "+12.4%",
-                          },
-                          {
-                            title: "Active Users",
-                            value: "3,842",
-                            delta: "+4.1%",
-                          },
-                          {
-                            title: "Churn",
-                            value: "1.8%",
-                            delta: "-0.3%",
-                          },
-                        ]
+                      : dashStyle === "pulse"
+                        ? [
+                            {
+                              title: "Total Active Users",
+                              value: "24,891",
+                              delta: "+12.4%",
+                            },
+                            {
+                              title: "Total Sessions",
+                              value: "182.4k",
+                              delta: "+8.1%",
+                            },
+                            {
+                              title: "Avg. Retention",
+                              value: "64.2%",
+                              delta: "+2.3%",
+                            },
+                            {
+                              title: "Churn Rate",
+                              value: "3.8%",
+                              delta: "-0.6%",
+                            },
+                          ]
+                        : [
+                            {
+                              title: "Total Revenue",
+                              value: "$24,800",
+                              delta: "+12.4%",
+                            },
+                            {
+                              title: "Active Users",
+                              value: "3,842",
+                              delta: "+4.1%",
+                            },
+                            {
+                              title: "Churn",
+                              value: "1.8%",
+                              delta: "-0.3%",
+                            },
+                          ]
                   ).map((k, i) => ({
                     id: nid(`k${i}`),
                     type: "kpi-card" as const,
@@ -565,11 +628,26 @@ export function buildFixtureSchema(
                     title:
                       dashStyle === "fintech"
                         ? "Portfolio Performance"
-                        : "Revenue Overview",
-                    chartType: "area",
+                        : dashStyle === "pulse"
+                          ? "Weekly Active Users"
+                          : "Revenue Overview",
+                    chartType: dashStyle === "pulse" ? "line" : "area",
                     points: [12, 18, 15, 22, 28, 26, 34, 38, 36, 44],
                   },
                 },
+                ...(dashStyle === "pulse"
+                  ? [
+                      {
+                        id: nid("bars"),
+                        type: "chart" as const,
+                        props: {
+                          title: "Feature Adoption",
+                          chartType: "bar",
+                          points: [22, 18, 28, 16, 24],
+                        },
+                      },
+                    ]
+                  : []),
                 // Intentionally omit Recent Transactions table so Critique → Fix
                 // has a visible improvement (table appears after revise).
               ],

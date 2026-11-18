@@ -175,15 +175,29 @@ export function reviseSchemaLocally(
     /kpi|metric/i.test(`${i.message} ${i.suggestion}`)
   );
   const highCompleteness = critique.issues.some(
-    (i) => i.dimension === "completeness" && i.severity !== "low"
+    (i) =>
+      (i.dimension === "requirementCoverage" ||
+        i.dimension === "componentCompleteness" ||
+        // legacy critiques from older runs
+        (i.dimension as string) === "completeness") &&
+      i.severity !== "low"
   );
+
+  // Also honor intent.requiredComponents explicitly
+  const required = intent.requiredComponents || [];
+  const needsRequiredTable =
+    required.some((r) => /table|transaction/i.test(r)) && !blob().includes('"table"');
+  const needsRequiredChart =
+    required.some((r) => /chart/i.test(r)) && !blob().includes('"chart"');
+  const needsRequiredKpi =
+    required.some((r) => /kpi/i.test(r)) && !blob().includes('"kpi-card"');
 
   const hasKpi = blob().includes('"kpi-card"');
   const hasChart = blob().includes('"chart"');
   const hasTable = blob().includes('"table"');
   const extras: UiNode[] = [];
 
-  if ((highCompleteness || needsKpi) && !hasKpi) {
+  if ((highCompleteness || needsKpi || needsRequiredKpi) && !hasKpi) {
     extras.push({
       id: makeId("n"),
       type: "grid",
@@ -208,7 +222,7 @@ export function reviseSchemaLocally(
     });
     changelog.push("Added KPI cards");
   }
-  if ((highCompleteness || needsChart) && !hasChart) {
+  if ((highCompleteness || needsChart || needsRequiredChart) && !hasChart) {
     extras.push({
       id: makeId("n"),
       type: "chart",
@@ -220,7 +234,7 @@ export function reviseSchemaLocally(
     });
     changelog.push("Added chart");
   }
-  if ((highCompleteness || needsTable) && !hasTable) {
+  if ((highCompleteness || needsTable || needsRequiredTable) && !hasTable) {
     extras.push({
       id: makeId("n"),
       type: "table",
