@@ -229,6 +229,7 @@ export function ConsultantAuthForm({
 export interface AuthModalProps {
   open: boolean;
   intent?: ConsultantAuthFormProps["intent"];
+  initialMode?: AuthMode;
   onClose: () => void;
   onSuccess: (email: string) => void;
 }
@@ -236,6 +237,7 @@ export interface AuthModalProps {
 export function AuthModal({
   open,
   intent = "default",
+  initialMode = "signin",
   onClose,
   onSuccess,
 }: AuthModalProps) {
@@ -266,6 +268,7 @@ export function AuthModal({
         </div>
         <ConsultantAuthForm
           intent={intent}
+          initialMode={initialMode}
           onSuccess={(email) => {
             onSuccess(email);
             onClose();

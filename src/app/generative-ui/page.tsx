@@ -52,6 +52,10 @@ import type {
   UiSchema,
 } from "@/lib/genui/types";
 import { makeId } from "@/lib/genui/ids";
+import {
+  AuthModal,
+  getConsultantSession,
+} from "@/components/studio/AuthModal";
 
 const OWNER_KEY = "glassportal-local";
 
@@ -101,9 +105,35 @@ function GenerativeUiWorkspaceInner() {
   const [stageMetrics, setStageMetrics] = useState<PreviewStageMetrics | null>(
     null
   );
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "register">("register");
   const historyRef = useRef<HTMLDivElement>(null);
   const previewRootRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
+
+  useEffect(() => {
+    setSessionEmail(getConsultantSession());
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/session", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          authenticated?: boolean;
+          email?: string;
+        };
+        if (json.authenticated && json.email) {
+          sessionStorage.setItem("glassportal_consultant_session", json.email);
+          setSessionEmail(json.email);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   const applyDetail = (json: {
     run: GenerationRun;
@@ -135,9 +165,19 @@ function GenerativeUiWorkspaceInner() {
     }
   };
 
+  const openAuth = (mode: "signin" | "register" = "register") => {
+    setAuthMode(mode);
+    setAuthOpen(true);
+  };
+
   const onGenerate = async (fixture: boolean) => {
     setError("");
     setNote("");
+    if (!fixture && !getConsultantSession() && !sessionEmail) {
+      setError("Sign in to Generate with AI. Sample works without an account.");
+      openAuth("register");
+      return;
+    }
     setBusy(fixture ? "fixture" : "generate");
     try {
       const res = await fetch("/api/genui/generate", {
@@ -159,7 +199,12 @@ function GenerativeUiWorkspaceInner() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Generate failed");
+      if (!res.ok) {
+        if (res.status === 401) {
+          openAuth(sessionEmail ? "signin" : "register");
+        }
+        throw new Error(json.error || "Generate failed");
+      }
       setIntentSource(json.intentSource || "");
       applyDetail(json);
       if (json.run?.style) {
@@ -480,6 +525,28 @@ function GenerativeUiWorkspaceInner() {
             <BarChart3 className="h-3.5 w-3.5" />
             Dashboard
           </Link>
+          {sessionEmail ? (
+            <span
+              className={`ml-1 truncate text-[10px] ${
+                immersive ? "text-white/55" : "text-slate-400"
+              }`}
+              title={sessionEmail}
+            >
+              {sessionEmail}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openAuth("register")}
+              className={`ml-1 inline-flex items-center rounded-md px-1.5 py-1 text-[11px] font-semibold ${
+                immersive
+                  ? "bg-white/15 text-white hover:bg-white/25"
+                  : "bg-slate-900 text-white hover:bg-slate-800"
+              }`}
+            >
+              Sign in / Register
+            </button>
+          )}
           {run ? (
             <Link
               href={`/generative-ui/inspector?run=${encodeURIComponent(run.id)}`}
@@ -947,6 +1014,19 @@ function GenerativeUiWorkspaceInner() {
           </div>
         </section>
       </div>
+
+      <AuthModal
+        open={authOpen}
+        intent="default"
+        initialMode={authMode}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={(email) => {
+          setSessionEmail(email);
+          setAuthOpen(false);
+          setError("");
+          setNote(`Signed in as ${email}. You can Generate with AI now.`);
+        }}
+      />
     </div>
   );
 }
