@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
 import { fetchPortalData } from "@/lib/parser";
 import { loadBranding } from "@/lib/branding-store";
+import { buildExecutiveCoverDataUrl } from "@/lib/brand-cover";
 import { getThemePreset, normalizeThemeId, themeBrandColor } from "@/lib/theme-presets";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { PortalBrandFavicon } from "@/components/portal/PortalBrandFavicon";
@@ -85,7 +86,24 @@ async function applyBranding(
     icon: logoPath || data.icon,
     coverUrl: branding?.hideCover
       ? undefined
-      : coverPath || data.coverUrl,
+      : coverPath ||
+        (data.coverUrl && !data.coverUrl.includes("sample-executive-cover.png")
+          ? data.coverUrl
+          : undefined) ||
+        buildExecutiveCoverDataUrl({
+          brandColor: branding?.brandColor || data.brandColor || "#0F172A",
+          clientName:
+            searchParams.client ||
+            branding?.clientName ||
+            data.clientName ||
+            "Client",
+          title: searchParams.ogTitle || data.title,
+          subtitle:
+            searchParams.ogDesc ||
+            branding?.cardSubtitle ||
+            data.description ||
+            "Confidential commercial delivery",
+        }),
     brandColor: branding?.brandColor || data.brandColor || "#0F172A",
   };
 }

@@ -24,9 +24,12 @@ import {
   extractBrandColor,
 } from "@/lib/brand-color";
 import {
+  buildExecutiveCoverDataUrl,
+  DEFAULT_SAMPLE_COVER,
+} from "@/lib/brand-cover";
+import {
   createSamplePortalData,
   isSamplePortal,
-  SAMPLE_COVER_URL,
 } from "@/lib/sample-portal";
 import {
   THEME_PRESETS,
@@ -93,9 +96,15 @@ export default function BuilderPage() {
 
   const [clientName, setClientName] = useState("Acme Corporation");
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
-  /** Uploaded commercial poster (data URL) or /api/branding/.../cover path */
+  /**
+   * Uploaded commercial poster (data URL) or /api/branding/.../cover path.
+   * Empty + coverMode auto → brand-color executive poster.
+   */
   const [coverDataUrl, setCoverDataUrl] = useState<string>("");
-  const [hideCover, setHideCover] = useState(false);
+  const [coverMode, setCoverMode] = useState<"auto" | "upload" | "hidden">(
+    "auto"
+  );
+  const hideCover = coverMode === "hidden";
   const [brandColor, setBrandColor] = useState("#475569");
   const [passcodeEnabled, setPasscodeEnabled] = useState(true);
   const [passcode, setPasscode] = useState("Acme2026");
@@ -119,6 +128,7 @@ export default function BuilderPage() {
         clientName?: string;
         logoDataUrl?: string;
         hideCover?: boolean;
+        coverMode?: "auto" | "upload" | "hidden";
         brandColor?: string;
         passcodeEnabled?: boolean;
         passcode?: string;
@@ -128,7 +138,11 @@ export default function BuilderPage() {
       };
       if (brand.clientName) setClientName(brand.clientName);
       if (brand.logoDataUrl) setLogoDataUrl(brand.logoDataUrl);
-      if (typeof brand.hideCover === "boolean") setHideCover(brand.hideCover);
+      if (brand.coverMode === "auto" || brand.coverMode === "upload" || brand.coverMode === "hidden") {
+        setCoverMode(brand.coverMode);
+      } else if (typeof brand.hideCover === "boolean" && brand.hideCover) {
+        setCoverMode("hidden");
+      }
       // Theme preset color applies unless a custom logo-sampled color was saved
       if (brand.brandColor) setBrandColor(brand.brandColor);
       else setBrandColor(themeBrandColor(savedTheme));
@@ -153,7 +167,8 @@ export default function BuilderPage() {
       JSON.stringify({
         clientName,
         logoDataUrl,
-        hideCover,
+        coverMode,
+        hideCover: coverMode === "hidden",
         brandColor,
         passcodeEnabled,
         passcode,
@@ -165,7 +180,7 @@ export default function BuilderPage() {
   }, [
     clientName,
     logoDataUrl,
-    hideCover,
+    coverMode,
     brandColor,
     passcodeEnabled,
     passcode,
@@ -183,11 +198,26 @@ export default function BuilderPage() {
       (data.title || "").trim() ||
       shareConfig.cardTitle.trim() ||
       `${clientName} 2026 Strategic Advisory Report`;
-    const resolvedCover = hideCover
-      ? undefined
-      : coverDataUrl ||
-        data.coverUrl ||
-        (isSamplePortal(data) ? SAMPLE_COVER_URL : undefined);
+    const autoCover = buildExecutiveCoverDataUrl({
+      brandColor,
+      clientName: clientName.trim() || data.clientName || "Client",
+      title,
+      subtitle:
+        shareConfig.cardSubtitle.trim() ||
+        data.description ||
+        "Confidential commercial delivery",
+    });
+    const notionCoverLooksBroken =
+      !data.coverUrl ||
+      data.coverUrl.includes("sample-executive-cover.png");
+    const resolvedCover =
+      coverMode === "hidden"
+        ? undefined
+        : coverMode === "upload" && coverDataUrl
+          ? coverDataUrl
+          : autoCover ||
+            (!notionCoverLooksBroken ? data.coverUrl : undefined) ||
+            (isSamplePortal(data) ? DEFAULT_SAMPLE_COVER : autoCover);
     return {
       ...data,
       title,
@@ -212,7 +242,7 @@ export default function BuilderPage() {
     clientName,
     logoDataUrl,
     coverDataUrl,
-    hideCover,
+    coverMode,
     brandColor,
     passcodeEnabled,
     passcode,
@@ -280,7 +310,9 @@ export default function BuilderPage() {
           clientName: clientName.trim(),
           logoDataUrl: (overrides?.logoDataUrl ?? logoDataUrl) || undefined,
           ...coverPayload,
-          hideCover: overrides?.hideCover ?? hideCover,
+          hideCover:
+            overrides?.hideCover ??
+            (overrides?.clearCover ? false : coverMode === "hidden"),
           brandColor: overrides?.brandColor ?? brandColor,
           theme: overrides?.theme ?? theme,
           cardTitle: shareConfig.cardTitle.trim() || undefined,
@@ -326,10 +358,13 @@ export default function BuilderPage() {
       const color = await extractBrandColor(compressed);
       setLogoDataUrl(compressed);
       setBrandColor(color);
+      // Logo color drives the auto commercial poster
+      if (coverMode !== "upload") setCoverMode("auto");
       if (data?.id) {
         void persistBranding(data.id, {
           logoDataUrl: compressed,
           brandColor: color,
+          hideCover: false,
         });
       }
     };
@@ -347,7 +382,7 @@ export default function BuilderPage() {
       const raw = String(reader.result || "");
       const compressed = await compressCoverDataUrl(raw);
       setCoverDataUrl(compressed);
-      setHideCover(false);
+      setCoverMode("upload");
       if (data?.id) {
         void persistBranding(data.id, {
           coverDataUrl: compressed,
@@ -360,13 +395,14 @@ export default function BuilderPage() {
 
   const onClearCover = () => {
     setCoverDataUrl("");
+    setCoverMode("auto");
     if (data?.id) {
-      void persistBranding(data.id, { clearCover: true });
+      void persistBranding(data.id, { clearCover: true, hideCover: false });
     }
   };
 
   const onToggleHideCover = (next: boolean) => {
-    setHideCover(next);
+    setCoverMode(next ? "hidden" : coverDataUrl ? "upload" : "auto");
     if (data?.id) {
       void persistBranding(data.id, { hideCover: next });
     }
@@ -385,15 +421,18 @@ export default function BuilderPage() {
         hideCover?: boolean;
         updatedAt?: string;
       };
-      if (typeof brand.hideCover === "boolean") setHideCover(brand.hideCover);
-      if (brand.hasCover && !brand.hideCover) {
+      if (brand.hideCover) {
+        setCoverMode("hidden");
+      } else if (brand.hasCover) {
+        setCoverMode("upload");
         setCoverDataUrl(
           `/api/branding/${encodeURIComponent(pageId)}/cover?v=${encodeURIComponent(
             brand.updatedAt || String(Date.now())
           )}`
         );
-      } else if (!brand.hasCover && !coverDataUrl.startsWith("data:")) {
-        setCoverDataUrl("");
+      } else {
+        setCoverMode((m) => (m === "upload" && coverDataUrl.startsWith("data:") ? m : "auto"));
+        if (!coverDataUrl.startsWith("data:")) setCoverDataUrl("");
       }
     } catch {
       /* keep local cover state */
@@ -861,23 +900,28 @@ export default function BuilderPage() {
         Upload poster
       </button>
       <p className="text-[10px] leading-relaxed text-slate-400">
-        Optional hero image for client-ready portals. Overrides the Notion page
-        cover (including dark empty covers).
+        Default: auto executive poster from your logo brand color. Upload a
+        custom commercial image anytime, or hide the banner.
       </p>
-      {!hideCover && (coverDataUrl || data?.coverUrl) ? (
+      {!hideCover && displayData?.coverUrl ? (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={coverDataUrl || data?.coverUrl || SAMPLE_COVER_URL}
+            src={displayData.coverUrl}
             alt="Cover poster preview"
             className="aspect-[2.4/1] w-full object-cover"
           />
+          <p className="border-t border-slate-100 px-2 py-1 text-[10px] text-slate-500">
+            {coverMode === "upload"
+              ? "Custom uploaded poster"
+              : "Auto-rendered from brand color"}
+          </p>
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-[11px] text-slate-400">
           {hideCover
             ? "Cover hidden — title starts at the top."
-            : "No poster yet — Notion cover (if any) will show."}
+            : "Cover will appear in the live preview."}
         </p>
       )}
       <div className="flex flex-wrap gap-2 pt-1">
@@ -888,13 +932,13 @@ export default function BuilderPage() {
         >
           {hideCover ? "Show cover" : "Hide cover"}
         </button>
-        {coverDataUrl ? (
+        {coverMode === "upload" ? (
           <button
             type="button"
             onClick={onClearCover}
             className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
           >
-            Remove uploaded poster
+            Use auto brand poster
           </button>
         ) : null}
       </div>
@@ -1208,13 +1252,7 @@ export default function BuilderPage() {
           }
           clientName={clientName}
           logoDataUrl={logoDataUrl}
-          coverUrl={
-            hideCover
-              ? undefined
-              : coverDataUrl ||
-                data?.coverUrl ||
-                (usingSample ? SAMPLE_COVER_URL : undefined)
-          }
+          coverUrl={displayData?.coverUrl}
           sharePath={privatePath || portalPath}
         />
       </GlassCard>
@@ -1621,13 +1659,7 @@ export default function BuilderPage() {
                 }
                 clientName={clientName}
                 logoDataUrl={logoDataUrl}
-                coverUrl={
-                  hideCover
-                    ? undefined
-                    : coverDataUrl ||
-                      data?.coverUrl ||
-                      (usingSample ? SAMPLE_COVER_URL : undefined)
-                }
+                coverUrl={displayData?.coverUrl}
                 sharePath={privatePath || portalPath}
               />
             </GlassCard>

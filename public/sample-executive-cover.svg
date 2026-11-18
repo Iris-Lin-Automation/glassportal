@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#03140F"/>
+      <stop offset="55%" stop-color="#0A2E22"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="78%" cy="18%" r="45%">
+      <stop offset="0%" stop-color="#34D399" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#059669" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#orb)"/>
+  <path d="M0 640 L1600 420 L1600 900 L0 900 Z" fill="#020617" fill-opacity="0.28"/>
+  <circle cx="1280" cy="210" r="180" fill="none" stroke="#F8FAFC" stroke-opacity="0.12" stroke-width="2"/>
+  <circle cx="1280" cy="210" r="110" fill="none" stroke="#059669" stroke-opacity="0.45" stroke-width="3"/>
+  <rect x="96" y="96" width="72" height="6" rx="3" fill="#059669"/>
+  <text x="96" y="150" fill="#E2E8F0" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="600" letter-spacing="3">ACME CORPORATION</text>
+  <text x="96" y="188" fill="#94A3B8" font-family="Inter, system-ui, sans-serif" font-size="16" letter-spacing="2">EXECUTIVE BRIEFING</text>
+  <text x="96" y="520" fill="#F8FAFC" font-family="Georgia, serif" font-size="52" font-weight="700">2026 Q3 B2B Go-To-Market &amp;</text>
+  <text x="96" y="584" fill="#F8FAFC" font-family="Georgia, serif" font-size="52" font-weight="700">Revenue Expansion Strategy</text>
+  <text x="96" y="760" fill="#CBD5E1" font-family="Inter, system-ui, sans-serif" font-size="22">Confidential executive briefing — CEO &amp; CFO</text>
+  <rect x="96" y="800" width="180" height="4" rx="2" fill="#059669"/>
+</svg>
