@@ -108,6 +108,11 @@ function NotionTable({
     <div
       className={`my-8 w-full max-w-full overflow-hidden rounded-xl border ${preset.tableWrap}`}
     >
+      <p
+        className={`border-b border-slate-100 px-3 py-1.5 text-[11px] font-medium sm:hidden ${preset.mutedText}`}
+      >
+        Swipe sideways to view full table
+      </p>
       {/* Horizontal scroll MUST stay — wide Notion tables need a bottom scrollbar */}
       <div className="portal-table-scroll w-full max-w-full overscroll-x-contain pb-1">
         <table
@@ -154,11 +159,15 @@ function NotionTable({
 function BlockView({
   block,
   token,
+  shareTicket,
+  pageId,
   rev,
   preset,
 }: {
   block: NotionParsedBlock;
   token?: string;
+  shareTicket?: string;
+  pageId?: string;
   rev?: string;
   preset: ThemePreset;
 }) {
@@ -222,6 +231,8 @@ function BlockView({
                   key={g.block.id}
                   block={g.block}
                   token={token}
+                  shareTicket={shareTicket}
+                  pageId={pageId}
                   rev={rev}
                   preset={preset}
                 />
@@ -259,6 +270,8 @@ function BlockView({
           url={block.url}
           caption={caption || undefined}
           token={token}
+          shareTicket={shareTicket}
+          pageId={pageId}
           rev={rev}
         />
       );
@@ -308,6 +321,7 @@ function BlockView({
 export function PortalRenderer({
   data,
   token,
+  shareTicket,
   logoUrl,
   theme,
   whiteLabel = false,
@@ -315,6 +329,7 @@ export function PortalRenderer({
 }: {
   data: PortalData;
   token?: string;
+  shareTicket?: string;
   /** Dynamic brand logo — always forwarded to PortalHeader (never hardcode). */
   logoUrl?: string;
   theme?: PortalTheme;
@@ -353,7 +368,7 @@ export function PortalRenderer({
   return (
     <div
       id="portal-export-root"
-      className={`mx-auto w-full max-w-3xl px-8 py-10 pb-24 ${preset.pageText}`}
+      className={`mx-auto w-full max-w-3xl px-4 py-6 pb-28 sm:px-6 sm:py-10 sm:pb-24 md:px-8 ${preset.pageText}`}
     >
       <PortalHeader
         data={data}
@@ -378,6 +393,8 @@ export function PortalRenderer({
               key={g.block.id}
               block={g.block}
               token={token}
+              shareTicket={shareTicket}
+              pageId={data.id}
               rev={rev}
               preset={preset}
             />

@@ -15,7 +15,10 @@ import { ExportToolbar } from "@/components/ui/ExportToolbar";
 
 interface PortalShellProps {
   data: PortalData;
+  /** Studio-only Notion Integration Token (never put in public share URLs). */
   token?: string;
+  /** Opaque published share ticket (`?s=`). */
+  shareTicket?: string;
   shareUrl?: string;
   showToolbar?: boolean;
   pinProgress?: boolean;
@@ -45,9 +48,17 @@ function brandingLogoPath(pageId: string, updatedAt?: string) {
   return `/api/branding/${encodeURIComponent(pageId)}/logo?v=${v}`;
 }
 
+function brandingCoverPath(pageId: string, updatedAt?: string) {
+  const v = encodeURIComponent(updatedAt || String(Date.now()));
+  return `/api/branding/${encodeURIComponent(pageId)}/cover?v=${v}`;
+}
+
 function mergeLive(prev: PortalData, next: PortalData): PortalData {
   const keepBrandedIcon =
     prev.icon?.startsWith("/api/branding") || prev.icon?.startsWith("data:");
+  const keepBrandedCover =
+    prev.coverUrl?.startsWith("/api/branding") ||
+    prev.coverUrl?.startsWith("data:");
   const prevImages = prev.blocks
     .filter((b) => b.type === "image")
     .map((b) => `${b.id}:${b.url || ""}`)
@@ -66,6 +77,12 @@ function mergeLive(prev: PortalData, next: PortalData): PortalData {
       : isRenderableLogo(next.icon)
         ? next.icon
         : prev.icon || next.icon,
+    // Keep uploaded commercial poster across Notion live-sync refreshes
+    coverUrl: keepBrandedCover
+      ? prev.coverUrl
+      : next.coverUrl !== undefined
+        ? next.coverUrl
+        : prev.coverUrl,
     brandColor: prev.brandColor || next.brandColor,
     clientName: prev.clientName || next.clientName,
     badge: prev.badge || next.badge,
@@ -83,6 +100,7 @@ function mergeLive(prev: PortalData, next: PortalData): PortalData {
 export function PortalShell({
   data,
   token,
+  shareTicket,
   shareUrl,
   showToolbar = true,
   pinProgress = true,
@@ -116,7 +134,7 @@ export function PortalShell({
         .join(",")}`;
       const contentChanged = contentKey !== parentContentKey.current;
 
-      // Theme / clientName / logo / brandColor only — keep live Notion blocks & images
+      // Theme / clientName / logo / cover / brandColor only — keep live Notion blocks & images
       if (prev.id === data.id && !contentChanged) {
         return {
           ...prev,
@@ -130,6 +148,8 @@ export function PortalShell({
           statusLabel: data.statusLabel ?? prev.statusLabel,
           brandColor: data.brandColor || prev.brandColor,
           icon: nextIcon,
+          // Allow hide/upload cover to clear or replace without waiting for Notion sync
+          coverUrl: data.coverUrl,
         };
       }
 
@@ -149,20 +169,18 @@ export function PortalShell({
     });
   }, [data]);
 
-  const tokenFromUrl = useMemo(() => {
+  const studioToken = useMemo(() => {
     const fromProp = token?.trim();
     if (fromProp && /^(secret_|ntn_)/i.test(fromProp)) return fromProp;
-    if (typeof window === "undefined") {
-      return fromProp || undefined;
-    }
-    const sp = new URLSearchParams(window.location.search);
-    const nt = (sp.get("nt") || sp.get("ntoken") || sp.get("t") || "").trim();
-    if (nt && /^(secret_|ntn_)/i.test(nt)) return nt;
-    const legacy = (sp.get("token") || "").trim();
-    if (legacy && /^(secret_|ntn_)/i.test(legacy)) return legacy;
-    // Studio may pass a valid integration token that doesn't match prefix heuristics
-    return fromProp || nt || undefined;
+    return undefined;
   }, [token]);
+
+  const portalTicket = useMemo(() => {
+    const fromProp = shareTicket?.trim();
+    if (fromProp) return fromProp;
+    if (typeof window === "undefined") return undefined;
+    return new URLSearchParams(window.location.search).get("s")?.trim() || undefined;
+  }, [shareTicket]);
 
   // Re-hydrate logo from branding API after hard refresh (favicon + header)
   useEffect(() => {
@@ -178,7 +196,9 @@ export function PortalShell({
         );
         if (!res.ok || cancelled) return;
         const branding = (await res.json()) as {
-          logoDataUrl?: string;
+          hasLogo?: boolean;
+          hasCover?: boolean;
+          hideCover?: boolean;
           brandColor?: string;
           clientName?: string;
           cardTitle?: string;
@@ -186,12 +206,24 @@ export function PortalShell({
           confidentialLabel?: string;
           updatedAt?: string;
         };
-        if (!branding.logoDataUrl && !branding.brandColor) return;
+        if (
+          !branding.hasLogo &&
+          !branding.hasCover &&
+          !branding.hideCover &&
+          !branding.brandColor
+        ) {
+          return;
+        }
         setLive((prev) => ({
           ...prev,
-          icon: branding.logoDataUrl
+          icon: branding.hasLogo
             ? brandingLogoPath(pageId, branding.updatedAt)
             : prev.icon,
+          coverUrl: branding.hideCover
+            ? undefined
+            : branding.hasCover
+              ? brandingCoverPath(pageId, branding.updatedAt)
+              : prev.coverUrl,
           // Prefer parent/theme-driven accent when already set
           brandColor: prev.brandColor || branding.brandColor || prev.brandColor,
           clientName: branding.clientName || prev.clientName,
@@ -210,13 +242,16 @@ export function PortalShell({
   }, [data.id]);
 
   const refreshFromNotion = useCallback(async () => {
-    if (!tokenFromUrl || syncing.current) return;
+    if ((!studioToken && !portalTicket) || syncing.current) return;
     syncing.current = true;
     try {
+      const headers: Record<string, string> = {};
+      if (studioToken) headers["x-notion-token"] = studioToken;
+      if (portalTicket) headers["x-portal-ticket"] = portalTicket;
       const res = await fetch(
         `/api/portal/${encodeURIComponent(live.id)}?_=${Date.now()}`,
         {
-          headers: { "x-notion-token": tokenFromUrl },
+          headers,
           cache: "no-store",
         }
       );
@@ -232,10 +267,10 @@ export function PortalShell({
     } finally {
       syncing.current = false;
     }
-  }, [tokenFromUrl, live.id, onLiveData]);
+  }, [studioToken, portalTicket, live.id, onLiveData]);
 
   useEffect(() => {
-    if (!liveSync || !tokenFromUrl) return;
+    if (!liveSync || (!studioToken && !portalTicket)) return;
 
     const onFocus = () => {
       void refreshFromNotion();
@@ -249,7 +284,7 @@ export function PortalShell({
       window.removeEventListener("focus", onFocus);
       window.clearInterval(timer);
     };
-  }, [liveSync, tokenFromUrl, liveSyncMs, refreshFromNotion]);
+  }, [liveSync, studioToken, portalTicket, liveSyncMs, refreshFromNotion]);
 
   // Parent updates brandColor on theme select / logo upload — keep in sync
   const brandColor =
@@ -265,7 +300,7 @@ export function PortalShell({
     trackCopy,
   } = usePortalAnalytics({
     pageId: live.id,
-    token: tokenFromUrl,
+    shareTicket: portalTicket,
   });
 
   return (
@@ -287,7 +322,8 @@ export function PortalShell({
       {/* Spacer is owned by ReadingProgress anchor — avoid double gap */}
       <PortalRenderer
         data={{ ...live, brandColor }}
-        token={tokenFromUrl}
+        token={studioToken}
+        shareTicket={portalTicket}
         logoUrl={logoUrl}
         theme={resolvedTheme}
         whiteLabel={whiteLabel}

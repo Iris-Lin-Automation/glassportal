@@ -9,27 +9,22 @@ import {
 } from "@/lib/plan-store";
 import { bindDomain } from "@/lib/domain-store";
 import { fulfillPurchase } from "@/lib/fulfill";
+import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
+import {
+  looksLikeNotionToken,
+  timingSafeEqualString,
+} from "@/lib/security/crypto";
+import { requireSessionEmail } from "@/lib/security/studio-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function emailFrom(req: NextRequest, body?: { email?: string }) {
-  return (
-    body?.email?.trim().toLowerCase() ||
-    req.headers.get("x-consultant-email")?.trim().toLowerCase() ||
-    ""
-  );
-}
-
-/** GET ?email= — current plan, usage, entitlements */
+/** GET — current plan for the signed-in consultant only */
 export async function GET(req: NextRequest) {
   try {
-    const email = emailFrom(req);
+    const email = requireSessionEmail(req);
     if (!email) {
-      return NextResponse.json(
-        { error: "Consultant email required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Sign in required" }, { status: 401 });
     }
     const record = await getOrCreatePlan(email);
     const def = getPlan(record.plan);
@@ -50,10 +45,11 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST actions:
- * - { action: "set-plan", email, plan } — MVP manual upgrade (Stripe later)
- * - { action: "claim", email, pageId } — reserve a portal slot
- * - { action: "bind-domain", email, hostname, pageId } — Agency only
+ * POST actions (session required except fulfill with FULFILLMENT_SECRET):
+ * - { action: "set-plan", plan }
+ * - { action: "claim", pageId }
+ * - { action: "bind-domain", hostname, pageId }
+ * - { action: "fulfill", email, plan, secret }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -64,21 +60,23 @@ export async function POST(req: NextRequest) {
       pageId?: string;
       hostname?: string;
       secret?: string;
+      notionToken?: string;
     };
-    const email = emailFrom(req, body);
-    if (!email) {
-      return NextResponse.json(
-        { error: "Consultant email required" },
-        { status: 400 }
-      );
-    }
 
     const action = body.action || "set-plan";
 
     if (action === "fulfill") {
       const expected = process.env.FULFILLMENT_SECRET || "";
-      if (!expected || body.secret !== expected) {
+      if (
+        !expected ||
+        !body.secret ||
+        !timingSafeEqualString(body.secret, expected)
+      ) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const email = (body.email || "").trim().toLowerCase();
+      if (!email) {
+        return NextResponse.json({ error: "email required" }, { status: 400 });
       }
       const record = await fulfillPurchase({
         email,
@@ -90,6 +88,11 @@ export async function POST(req: NextRequest) {
         record,
         entitlements: entitlementsFor(record.plan),
       });
+    }
+
+    const email = requireSessionEmail(req);
+    if (!email) {
+      return NextResponse.json({ error: "Sign in required" }, { status: 401 });
     }
 
     if (action === "set-plan") {
@@ -119,6 +122,22 @@ export async function POST(req: NextRequest) {
     if (action === "claim") {
       if (!body.pageId) {
         return NextResponse.json({ error: "pageId required" }, { status: 400 });
+      }
+      if (!looksLikeNotionToken(body.notionToken)) {
+        return NextResponse.json(
+          { error: "Notion Integration Token required to claim a page." },
+          { status: 401 }
+        );
+      }
+      try {
+        const pageId = resolveNotionPageId(body.pageId);
+        const client = createNotionClient(body.notionToken);
+        await client.pages.retrieve({ page_id: pageId });
+      } catch {
+        return NextResponse.json(
+          { error: "Notion token cannot access this page." },
+          { status: 403 }
+        );
       }
       const result = await claimPortal(email, body.pageId);
       if (!result.ok) {

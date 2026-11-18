@@ -14,6 +14,16 @@ Turn any Notion page into a polished, password-protected, dark-glassmorphism cli
 
 ---
 
+## Demo (~30s)
+
+Studio **first page** (auto brand commercial cover + theme tint) → Generative UI core (styles / mobile / Generate).
+
+![GlassPortal combined demo](./docs/demos/glassportal-combined-demo.gif)
+
+[MP4](./docs/demos/glassportal-combined-demo.mp4) · [Studio cover only](./docs/STUDIO-COVER-DEMO.md) · [GenUI core](./docs/GENUI-CORE-DEMO.md)
+
+---
+
 ## Overview
 
 GlassPortal is a full-stack SaaS-style application that sits on top of the Notion API. Authors connect a Notion page once, and the app renders it as a branded, client-ready portal at a shareable `/p/[id]` URL. A built-in Studio provides a WYSIWYG-style builder for configuring branding, plan tier, passcodes, and custom domains.
@@ -22,7 +32,8 @@ GlassPortal is a full-stack SaaS-style application that sits on top of the Notio
 
 - **Online project** — https://glassportal.vercel.app
 - **Sample portal** — `/p/demo` (no Notion connection required)
-- **Builder / Studio** — `/`
+- **Builder / Studio (first page)** — `/`
+- **Generative UI** — `/generative-ui`
 
 ---
 

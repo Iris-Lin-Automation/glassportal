@@ -5,7 +5,9 @@ import { loadBranding } from "@/lib/branding-store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Serve saved client logo bytes for favicon / <img> on share links. */
+/** Raster logos only — never SVG (stored XSS risk when served from app origin). */
+const ALLOWED = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -23,14 +25,20 @@ export async function GET(
       return NextResponse.json({ error: "Invalid logo data" }, { status: 400 });
     }
 
-    const contentType = match[1] || "image/png";
+    const rawType = (match[1] || "image/png").toLowerCase().trim();
+    if (!ALLOWED.has(rawType) || rawType.includes("svg")) {
+      return NextResponse.json({ error: "Unsupported logo type" }, { status: 400 });
+    }
+    const contentType = rawType === "image/jpg" ? "image/jpeg" : rawType;
     const buffer = Buffer.from(match[2], "base64");
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        // Allow short cache but always revalidate — favicon must survive refresh
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "inline",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
         "Cache-Control": "public, max-age=60, must-revalidate",
       },
     });

@@ -34,11 +34,11 @@ export function PlanBillingCard({
   const gumroadPro = process.env.NEXT_PUBLIC_GUMROAD_CHECKOUT_PRO || "";
   const gumroadAgency = process.env.NEXT_PUBLIC_GUMROAD_CHECKOUT_AGENCY || "";
 
-  const refresh = async (mail: string) => {
-    const res = await fetch(
-      `/api/plan?email=${encodeURIComponent(mail)}`,
-      { cache: "no-store" }
-    );
+  const refresh = async () => {
+    const res = await fetch(`/api/plan`, {
+      cache: "no-store",
+      credentials: "include",
+    });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || "Failed to load plan");
     setSnap({
@@ -56,7 +56,7 @@ export function PlanBillingCard({
       setSnap(null);
       return;
     }
-    void refresh(email).catch((e) =>
+    void refresh().catch((e) =>
       setErr(e instanceof Error ? e.message : "Plan load failed")
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,12 +88,13 @@ export function PlanBillingCard({
     try {
       const res = await fetch("/api/plan", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set-plan", email, plan }),
+        body: JSON.stringify({ action: "set-plan", plan }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Upgrade failed");
-      await refresh(email);
+      await refresh();
       setMsg(
         plan === "starter"
           ? "You’re on Free — client links stay available; exports keep the GlassPortal mark."
@@ -114,17 +115,17 @@ export function PlanBillingCard({
     try {
       const res = await fetch("/api/plan", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "bind-domain",
-          email,
           pageId,
           hostname: domainInput.trim(),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Domain bind failed");
-      await refresh(email);
+      await refresh();
       setMsg(
         `Bound ${json.binding.hostname}. Add a CNAME to your host, then attach the domain for HTTPS.`
       );
@@ -198,7 +199,7 @@ export function PlanBillingCard({
         onClick={() => {
           if (!email) return;
           setBusy(true);
-          void refresh(email)
+          void refresh()
             .then(() => setMsg("Plan refreshed."))
             .catch((e) =>
               setErr(e instanceof Error ? e.message : "Refresh failed")

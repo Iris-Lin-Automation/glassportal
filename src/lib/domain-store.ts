@@ -40,13 +40,21 @@ export async function bindDomain(
     throw new Error("Enter a valid hostname like portal.youragency.com");
   }
   const email = ownerEmail.trim().toLowerCase();
+  const all = await readAll();
+  const existing = all.find((d) => d.hostname === host);
+  if (existing && existing.ownerEmail !== email) {
+    throw new Error(
+      "This hostname is already bound to another consultant account."
+    );
+  }
+
   const next: DomainBinding = {
     hostname: host,
     pageId,
     ownerEmail: email,
     updatedAt: new Date().toISOString(),
   };
-  const all = await readAll();
+  // One domain per owner; never steal another owner's hostname.
   const filtered = all.filter(
     (d) => d.hostname !== host && d.ownerEmail !== email
   );

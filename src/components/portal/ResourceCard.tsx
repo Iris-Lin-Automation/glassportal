@@ -17,6 +17,16 @@ interface ResourceCardProps {
   kind?: "bookmark" | "embed" | "link_preview";
 }
 
+function safeHref(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function hostnameOf(url: string) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -60,9 +70,10 @@ export function ResourceCard({
   caption,
   kind = "bookmark",
 }: ResourceCardProps) {
-  if (!url) return null;
-  const label = labelFor(url, caption, title);
-  const host = hostnameOf(url);
+  const href = safeHref(url);
+  if (!href) return null;
+  const label = labelFor(href, caption, title);
+  const host = hostnameOf(href);
   const kindLabel =
     kind === "embed"
       ? "Embedded resource"
@@ -72,21 +83,21 @@ export function ResourceCard({
 
   return (
     <a
-      href={url}
+      href={href}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       className="group my-6 flex items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md"
     >
       <div className="flex w-1.5 shrink-0 bg-slate-900 transition group-hover:bg-slate-800" />
-      <div className="flex min-w-0 flex-1 items-center gap-4 px-4 py-4 md:px-5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition group-hover:border-slate-300 group-hover:bg-white">
+      <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3.5 sm:gap-4 sm:px-4 sm:py-4 md:px-5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition group-hover:border-slate-300 group-hover:bg-white sm:h-11 sm:w-11">
           <IconFor url={url} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             {kindLabel}
           </p>
-          <p className="mt-1 truncate text-[15px] font-semibold tracking-tight text-slate-900">
+          <p className="mt-1 break-words text-[15px] font-semibold tracking-tight text-slate-900 sm:truncate">
             📎 {label}
           </p>
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-slate-500">
@@ -94,7 +105,8 @@ export function ResourceCard({
             {host}
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition group-hover:bg-slate-800">
+        {/* Whole card is the tap target on phones — Open pill is desktop affordance */}
+        <span className="hidden shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition group-hover:bg-slate-800 sm:inline-flex">
           Open
           <ExternalLink className="h-3.5 w-3.5" />
         </span>

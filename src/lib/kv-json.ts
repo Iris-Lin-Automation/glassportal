@@ -27,9 +27,13 @@ export function hasRemoteKv() {
 
 function fsPath(key: string) {
   const safe = key.replace(/[^a-zA-Z0-9._:-]/g, "_");
-  const root = process.env.VERCEL
-    ? path.join("/tmp", "glassportal-data")
-    : path.join(process.cwd(), ".data");
+  // Production / hosted runtimes are often read-only except /tmp.
+  const root =
+    process.env.VERCEL ||
+    process.env.NODE_ENV === "production" ||
+    process.env.CURSOR_APP
+      ? path.join("/tmp", "glassportal-data")
+      : path.join(process.cwd(), ".data");
   return path.join(root, `${safe}.json`);
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fulfillPurchase } from "@/lib/fulfill";
+import { timingSafeEqualString } from "@/lib/security/crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,8 @@ export async function POST(req: NextRequest) {
         String(form.get("chargebacked") || "") === "true";
     }
 
-    if (secret && pingSecret && pingSecret !== secret) {
+    // Fail closed: secret must be configured AND match (omitting secret = reject).
+    if (!secret || !pingSecret || !timingSafeEqualString(pingSecret, secret)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

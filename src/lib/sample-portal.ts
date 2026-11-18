@@ -1,8 +1,9 @@
 import type { PortalData } from "@/lib/types";
+import { DEFAULT_SAMPLE_COVER } from "@/lib/brand-cover";
 
 export const SAMPLE_PORTAL_ID = "sample-acme-gtm-2026";
 /** Executive report cover shown in sample live preview + share cards */
-export const SAMPLE_COVER_URL = "/sample-executive-cover.png";
+export const SAMPLE_COVER_URL = DEFAULT_SAMPLE_COVER;
 
 export function isSamplePortal(data?: PortalData | null): boolean {
   return Boolean(data && data.id === SAMPLE_PORTAL_ID);
@@ -19,7 +20,7 @@ export function createSamplePortalData(): PortalData {
     status: "active",
     statusLabel: "Proposal Ready",
     brandColor: "#059669",
-    coverUrl: SAMPLE_COVER_URL,
+    coverUrl: DEFAULT_SAMPLE_COVER,
     description:
       "Confidential executive briefing — prepared exclusively for the CEO & CFO.",
     updatedAt: new Date().toISOString(),

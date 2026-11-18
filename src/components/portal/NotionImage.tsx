@@ -7,6 +7,8 @@ interface NotionImageProps {
   url?: string;
   caption?: string;
   token?: string;
+  shareTicket?: string;
+  pageId?: string;
   /** Cache-bust when Notion *content* is re-fetched (not theme / branding). */
   rev?: string | number;
 }
@@ -30,8 +32,8 @@ function isExternalHttp(url?: string) {
 /** Keep decoded images across theme toggles / remounts. */
 const imageCache = new Map<string, { src: string; rev: string }>();
 
-function cacheKey(blockId: string, token?: string) {
-  return `${blockId}::${token?.trim() || ""}`;
+function cacheKey(blockId: string, auth?: string) {
+  return `${blockId}::${auth?.trim() || ""}`;
 }
 
 /**
@@ -43,10 +45,13 @@ export function NotionImage({
   url,
   caption,
   token,
+  shareTicket,
+  pageId,
   rev,
 }: NotionImageProps) {
   const cleanToken = token?.trim() || "";
-  const key = cacheKey(blockId, cleanToken);
+  const ticket = shareTicket?.trim() || "";
+  const key = cacheKey(blockId, ticket || cleanToken);
   const revKey = String(rev ?? "");
   const cached = imageCache.get(key);
 
@@ -88,12 +93,18 @@ export function NotionImage({
       const params = new URLSearchParams({ blockId });
       if (revKey) params.set("v", revKey);
       params.set("_", String(attempt));
-      if (cleanToken) params.set("nt", cleanToken);
+      if (pageId) params.set("pageId", pageId);
+      if (ticket) params.set("s", ticket);
+      // Never put Notion Integration Token in the query string.
+
+      const headers: Record<string, string> = {};
+      if (cleanToken) headers["x-notion-token"] = cleanToken;
+      if (ticket) headers["x-portal-ticket"] = ticket;
 
       const res = await fetch(`/api/media/notion?${params.toString()}`, {
         method: "GET",
         cache: "no-store",
-        headers: cleanToken ? { "x-notion-token": cleanToken } : undefined,
+        headers: Object.keys(headers).length ? headers : undefined,
       });
 
       if (!res.ok) {

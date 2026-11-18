@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { fulfillPurchase } from "@/lib/fulfill";
 
@@ -7,10 +8,32 @@ export const dynamic = "force-dynamic";
 /**
  * Lemon Squeezy webhook (order_created).
  * Set webhook URL: https://glassportal.vercel.app/api/webhooks/lemon
+ * Verify X-Signature with LEMONSQUEEZY_WEBHOOK_SECRET (HMAC-SHA256 of raw body).
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as {
+    const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET || "";
+    if (!secret) {
+      return NextResponse.json(
+        { error: "Webhook secret not configured" },
+        { status: 401 }
+      );
+    }
+
+    const raw = await req.text();
+    const signature = req.headers.get("x-signature") || "";
+    if (!signature) {
+      return NextResponse.json({ error: "Missing signature" }, { status: 401 });
+    }
+
+    const digest = createHmac("sha256", secret).update(raw).digest("hex");
+    const a = Buffer.from(digest);
+    const b = Buffer.from(signature);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const body = JSON.parse(raw) as {
       meta?: { event_name?: string };
       data?: {
         id?: string;

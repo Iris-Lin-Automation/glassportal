@@ -3,10 +3,15 @@
 import { FormEvent, useState, type ReactNode } from "react";
 
 interface PasswordGateProps {
-  /** Passcode viewers must type when no private token is present */
-  expected?: string;
-  /** When true (`?token=` client access token), skip the gate entirely */
+  pageId?: string;
+  /** When true, passcode gate is enabled for this portal */
+  passcodeEnabled?: boolean;
+  /** Sample demo only — local compare, never used for live portals */
+  demoExpected?: string;
+  /** When true (validated VIP token), skip the gate entirely */
   bypassWithToken?: boolean;
+  /** Server already unlocked via cookie */
+  alreadyUnlocked?: boolean;
   clientName?: string;
   confidentialLabel?: string;
   children: ReactNode;
@@ -14,28 +19,60 @@ interface PasswordGateProps {
 
 /** Executive light passcode card for end readers (no account required). */
 export function PasswordGate({
-  expected,
+  pageId,
+  passcodeEnabled = false,
+  demoExpected,
   bypassWithToken = false,
+  alreadyUnlocked = false,
   clientName = "Client",
   confidentialLabel = "Strictly Confidential",
   children,
 }: PasswordGateProps) {
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(alreadyUnlocked);
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  if (bypassWithToken || !expected || unlocked) {
+  const gated = Boolean(passcodeEnabled || demoExpected);
+
+  if (bypassWithToken || !gated || unlocked) {
     return <>{children}</>;
   }
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (value.trim() === expected) {
+    setBusy(true);
+    setError("");
+    try {
+      if (demoExpected) {
+        if (value.trim() === demoExpected.trim()) {
+          setUnlocked(true);
+        } else {
+          setError("Incorrect passcode.");
+        }
+        return;
+      }
+      if (!pageId) {
+        setError("Portal id missing.");
+        return;
+      }
+      const res = await fetch(`/api/portal/${encodeURIComponent(pageId)}/unlock`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passcode: value.trim() }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(json.error || "Incorrect passcode.");
+        return;
+      }
       setUnlocked(true);
-      setError("");
-      return;
+    } catch {
+      setError("Could not verify passcode. Try again.");
+    } finally {
+      setBusy(false);
     }
-    setError("Incorrect passcode.");
   };
 
   return (
@@ -80,16 +117,13 @@ export function PasswordGate({
             ) : null}
             <button
               type="submit"
-              className="w-full rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              disabled={busy}
+              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              Continue
+              {busy ? "Checking…" : "Unlock Report"}
             </button>
           </form>
         </div>
-
-        <p className="mt-6 text-center text-[11px] text-slate-400">
-          No account required · Read-only executive access
-        </p>
       </div>
     </div>
   );

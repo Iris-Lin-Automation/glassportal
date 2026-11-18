@@ -132,12 +132,15 @@ export function PortalHeader({
           style={{ backgroundColor: accent, color: accentFg }}
         >
           <Lock className="h-3 w-3" />
-          Confidential Commercial Delivery
+          <span className="sm:hidden">Confidential</span>
+          <span className="hidden sm:inline">
+            Confidential Commercial Delivery
+          </span>
         </span>
       </div>
 
       {isRenderableLogo(coverUrl) ? (
-        <div className="relative aspect-[16/9] w-full overflow-hidden border-t border-slate-100 bg-slate-100">
+        <div className="relative aspect-[2.4/1] w-full overflow-hidden border-t border-slate-100 bg-slate-100 sm:aspect-[2/1] md:aspect-[16/9]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={coverUrl}
@@ -149,15 +152,15 @@ export function PortalHeader({
       ) : null}
 
       {pageTitle ? (
-        <div className="border-t border-slate-100 px-5 py-6 md:px-6">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[1.75rem]">
+        <div className="border-t border-slate-100 px-4 py-5 sm:px-5 sm:py-6 md:px-6">
+          <h1 className="text-[1.375rem] font-bold leading-snug tracking-tight text-slate-900 sm:text-2xl md:text-[1.75rem]">
             {pageTitle}
           </h1>
         </div>
       ) : null}
 
       {showBadgeRow ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-2.5 md:px-6">
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2.5 sm:px-5 md:px-6">
           {badgeText ? (
             <span
               className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-medium ${preset.chip}`}
@@ -188,7 +191,7 @@ export function PortalHeader({
       ) : null}
 
       {visibleStats.length > 0 ? (
-        <div className="grid gap-4 border-t border-slate-100 px-5 py-5 sm:grid-cols-3 md:px-6">
+        <div className="grid gap-3 border-t border-slate-100 px-4 py-4 sm:grid-cols-3 sm:gap-4 sm:px-5 sm:py-5 md:px-6">
           {visibleStats.map((stat) => {
             const status =
               typeof stat.status === "string" && stat.status.trim()
@@ -197,12 +200,12 @@ export function PortalHeader({
             return (
               <div
                 key={stat.label}
-                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   {stat.label.trim()}
                 </p>
-                <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                   {stat.value.trim()}
                 </p>
                 {status ? (

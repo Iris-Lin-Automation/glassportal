@@ -1,37 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createNotionClient, normalizeId } from "@/lib/notion";
+import { createNotionClient, normalizeId, resolveNotionPageId } from "@/lib/notion";
+import { looksLikeNotionToken } from "@/lib/security/crypto";
+import { resolvePortalNotionToken } from "@/lib/security/portal-credential";
+import { isNotionSignedUrl, isSafePublicHttpsUrl } from "@/lib/security/ssrf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function extractToken(req: NextRequest): string | undefined {
-  const queryToken = req.nextUrl.searchParams.get("token");
-  const candidates = [
-    req.headers.get("x-notion-token"),
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, ""),
-    req.nextUrl.searchParams.get("nt"),
-    req.nextUrl.searchParams.get("ntoken"),
-    // `token` is often the client access key — only accept Notion-shaped values
-    queryToken && /^(secret_|ntn_)/i.test(queryToken) ? queryToken : null,
-    process.env.NOTION_API_TOKEN,
-  ];
-  for (const c of candidates) {
-    const v = c?.trim();
-    if (v) return v;
-  }
-  return undefined;
-}
-
-function isNotionSignedUrl(url?: string | null) {
-  if (!url) return false;
-  return (
-    /amazonaws\.com/i.test(url) ||
-    /secure\.notion-static\.com/i.test(url) ||
-    /prod-files-secure/i.test(url) ||
-    /notion\.so\/image/i.test(url) ||
-    /notion-static\.com/i.test(url)
-  );
-}
 
 function isTrashed(block: Record<string, unknown>) {
   return Boolean(block.in_trash || block.archived);
@@ -81,33 +55,54 @@ function extractImageUrl(block: Record<string, unknown>): string | null {
 }
 
 async function fetchUpstream(imageUrl: string) {
+  if (!isSafePublicHttpsUrl(imageUrl) && !isNotionSignedUrl(imageUrl)) {
+    throw new Error("Blocked non-Notion media URL");
+  }
   return fetch(imageUrl, {
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (compatible; GlassPortalMediaProxy/1.1; +https://glassportal.app)",
+        "Mozilla/5.0 (compatible; GlassPortalMediaProxy/1.2; +https://glassportal.app)",
       Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
     },
     cache: "no-store",
-    redirect: "follow",
+    redirect: "manual",
   });
 }
 
 /**
  * Proxy Notion images: re-issue a fresh signed URL via blocks.retrieve, then
- * stream bytes. Prefer x-notion-token header (not only query string).
+ * stream bytes. Auth: Notion-shaped header token OR published share ticket.
  */
 export async function GET(req: NextRequest) {
   try {
     const blockIdRaw = req.nextUrl.searchParams.get("blockId");
     const fallbackUrl = req.nextUrl.searchParams.get("url");
-    const token = extractToken(req);
+    const pageIdRaw = req.nextUrl.searchParams.get("pageId");
+    const headerToken = req.headers.get("x-notion-token");
+    const shareTicket =
+      req.headers.get("x-portal-ticket") ||
+      req.nextUrl.searchParams.get("s") ||
+      undefined;
 
-    if (!token) {
+    if (!blockIdRaw) {
+      return NextResponse.json({ error: "blockId required" }, { status: 400 });
+    }
+
+    const pageId = pageIdRaw ? resolveNotionPageId(pageIdRaw) : "";
+    const token = await resolvePortalNotionToken({
+      pageId: pageId || "media",
+      headerToken: looksLikeNotionToken(headerToken) ? headerToken : null,
+      shareTicket: pageId ? shareTicket : null,
+    });
+
+    // Header Notion token alone is enough when no page ticket (Studio preview).
+    const effectiveToken =
+      token ||
+      (looksLikeNotionToken(headerToken) ? headerToken!.trim() : null);
+
+    if (!effectiveToken) {
       return NextResponse.json(
-        {
-          error:
-            "Notion Integration Token required for media proxy. Re-open from Studio or ensure the share link includes nt=.",
-        },
+        { error: "Portal credential required for media proxy." },
         { status: 401 }
       );
     }
@@ -115,33 +110,26 @@ export async function GET(req: NextRequest) {
     let imageUrl = "";
     let retrieveError = "";
 
-    if (blockIdRaw) {
-      try {
-        const client = createNotionClient(token);
-        const block = (await client.blocks.retrieve({
-          block_id: normalizeId(blockIdRaw),
-        })) as unknown as Record<string, unknown>;
+    try {
+      const client = createNotionClient(effectiveToken);
+      const block = (await client.blocks.retrieve({
+        block_id: normalizeId(blockIdRaw),
+      })) as unknown as Record<string, unknown>;
 
-        if (isTrashed(block)) {
-          retrieveError = "Image block is archived/trashed";
-        } else {
-          const fresh = extractImageUrl(block);
-          if (fresh) imageUrl = fresh;
-          else
-            retrieveError = `Block type "${String(block.type || "unknown")}" has no image URL`;
-        }
-      } catch (e) {
-        retrieveError =
-          e instanceof Error ? e.message : "blocks.retrieve failed";
+      if (isTrashed(block)) {
+        retrieveError = "Image block is archived/trashed";
+      } else {
+        const fresh = extractImageUrl(block);
+        if (fresh) imageUrl = fresh;
+        else
+          retrieveError = `Block type "${String(block.type || "unknown")}" has no image URL`;
       }
+    } catch (e) {
+      retrieveError =
+        e instanceof Error ? e.message : "blocks.retrieve failed";
     }
 
-    // Only allow non-Notion-S3 fallbacks (true external https images)
-    if (!imageUrl && fallbackUrl && !isNotionSignedUrl(fallbackUrl)) {
-      imageUrl = fallbackUrl;
-    }
-
-    // Last resort: allow a still-fresh signed URL if retrieve failed (e.g. race)
+    // Only allow Notion-signed fallback URLs (never arbitrary hosts).
     if (!imageUrl && fallbackUrl && isNotionSignedUrl(fallbackUrl)) {
       imageUrl = fallbackUrl;
     }
@@ -157,17 +145,34 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    if (!isNotionSignedUrl(imageUrl) && !isSafePublicHttpsUrl(imageUrl)) {
+      return NextResponse.json({ error: "Blocked media host" }, { status: 400 });
+    }
+
     let upstream = await fetchUpstream(imageUrl);
 
-    // Signed URL may expire mid-flight — re-retrieve once
-    if (!upstream.ok && blockIdRaw && token) {
+    // Follow a single HTTPS redirect only to another Notion host
+    if (
+      upstream.status >= 300 &&
+      upstream.status < 400 &&
+      upstream.headers.get("location")
+    ) {
+      const loc = upstream.headers.get("location")!;
+      if (!isNotionSignedUrl(loc) && !isSafePublicHttpsUrl(loc)) {
+        return NextResponse.json({ error: "Blocked redirect host" }, { status: 400 });
+      }
+      upstream = await fetchUpstream(loc);
+      imageUrl = loc;
+    }
+
+    if (!upstream.ok && blockIdRaw) {
       try {
-        const client = createNotionClient(token);
+        const client = createNotionClient(effectiveToken);
         const block = (await client.blocks.retrieve({
           block_id: normalizeId(blockIdRaw),
         })) as unknown as Record<string, unknown>;
         const fresh = !isTrashed(block) ? extractImageUrl(block) : null;
-        if (fresh && fresh !== imageUrl) {
+        if (fresh && fresh !== imageUrl && isNotionSignedUrl(fresh)) {
           imageUrl = fresh;
           upstream = await fetchUpstream(imageUrl);
         }
@@ -178,15 +183,12 @@ export async function GET(req: NextRequest) {
 
     if (!upstream.ok) {
       return NextResponse.json(
-        {
-          error: `Upstream image fetch failed (${upstream.status})`,
-        },
+        { error: `Upstream image fetch failed (${upstream.status})` },
         { status: 502 }
       );
     }
 
     const contentType = upstream.headers.get("content-type") || "image/png";
-    // Guard: Notion sometimes returns XML/HTML error bodies with 200
     if (/text\/html|application\/json|text\/xml|application\/xml/i.test(contentType)) {
       return NextResponse.json(
         { error: `Upstream returned non-image content-type (${contentType})` },
@@ -199,12 +201,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Empty image payload" }, { status: 502 });
     }
 
+    const safeType = contentType.startsWith("image/") ? contentType : "image/png";
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        "Content-Type": contentType.startsWith("image/")
-          ? contentType
-          : "image/png",
+        "Content-Type": safeType,
+        "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store, no-cache, must-revalidate",
         Pragma: "no-cache",
       },

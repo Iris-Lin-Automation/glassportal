@@ -1,3 +1,41 @@
+/** Wide commercial poster / cover for portal hero (JPEG-biased for size). */
+export async function compressCoverDataUrl(
+  dataUrl: string,
+  maxWidth = 1400,
+  quality = 0.72
+): Promise<string> {
+  if (typeof window === "undefined" || !dataUrl.startsWith("data:")) {
+    return dataUrl;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxWidth / Math.max(img.width, 1));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = "#0F172A";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 /** Resize / compress a logo data-URL for storage & share-link delivery. */
 export async function compressLogoDataUrl(
   dataUrl: string,

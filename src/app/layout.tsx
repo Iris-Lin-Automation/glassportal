@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "GlassPortal — B2B Client Delivery",
   description:
     "Notion-driven B2B client delivery & proposal portal with executive light aesthetics.",
+};
+
+/** Mobile: device-width + safe-area (notch / home indicator) for pinned chrome */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
