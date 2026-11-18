@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveNotionPageId } from "@/lib/notion";
+import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
 import { loadBranding, saveBranding } from "@/lib/branding-store";
 import {
   claimPortal,
@@ -14,6 +14,24 @@ import { requireSessionEmail } from "@/lib/security/studio-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const LOGO_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+]);
+
+function assertSafeLogoDataUrl(dataUrl: string): string | null {
+  const match = /^data:([^;]+);base64,([\s\S]+)$/.exec(dataUrl);
+  if (!match) return "Logo must be a base64 data URL.";
+  const mime = match[1].toLowerCase().trim();
+  if (!LOGO_MIME.has(mime) || mime.includes("svg")) {
+    return "Logo must be PNG, JPEG, WebP, or GIF (SVG is not allowed).";
+  }
+  return null;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -59,15 +77,48 @@ export async function POST(
       accessToken?: string;
     };
 
-    if (body.logoDataUrl && body.logoDataUrl.length > 2_500_000) {
-      return NextResponse.json(
-        { error: "Logo too large. Please use a smaller image." },
-        { status: 413 }
-      );
+    if (body.logoDataUrl) {
+      if (body.logoDataUrl.length > 2_500_000) {
+        return NextResponse.json(
+          { error: "Logo too large. Please use a smaller image." },
+          { status: 413 }
+        );
+      }
+      const logoErr = assertSafeLogoDataUrl(body.logoDataUrl);
+      if (logoErr) {
+        return NextResponse.json({ error: logoErr }, { status: 400 });
+      }
     }
 
     // Owner is always the signed-in consultant — never trust body.ownerEmail alone.
     const ownerEmail = sessionEmail;
+
+    const existing = await loadBranding(pageId);
+    // First claim / publish must prove Notion page access with a real Integration token.
+    const isFirstOwner = !existing?.ownerEmail;
+    if (isFirstOwner || body.publish) {
+      if (!looksLikeNotionToken(body.notionToken)) {
+        return NextResponse.json(
+          {
+            error:
+              "A valid Notion Integration Token is required to claim or publish this page.",
+          },
+          { status: 401 }
+        );
+      }
+      try {
+        const client = createNotionClient(body.notionToken);
+        await client.pages.retrieve({ page_id: pageId });
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              "Notion token cannot access this page. Share the page with your Integration first.",
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     let showWatermark = true;
     let whiteLabel = false;
@@ -111,7 +162,6 @@ export async function POST(
       planId = record.plan;
     }
 
-    const existing = await loadBranding(pageId);
     // Only the existing owner (or first publisher) may overwrite this page.
     if (
       existing?.ownerEmail &&

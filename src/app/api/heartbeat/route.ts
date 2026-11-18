@@ -7,7 +7,9 @@ import {
 } from "@/lib/analytics-store";
 import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
 import { syncPortalToNotion } from "@/lib/notion-sync";
+import { loadBranding } from "@/lib/branding-store";
 import { resolvePortalNotionToken } from "@/lib/security/portal-credential";
+import { clientIp } from "@/lib/security/genui-guard";
 import { requireSessionEmail } from "@/lib/security/studio-session";
 
 export const runtime = "nodejs";
@@ -23,21 +25,55 @@ const TYPES: HeartbeatEventType[] = [
   "copy_link",
 ];
 
+const postHits = new Map<string, { n: number; reset: number }>();
+
+function rateLimited(key: string, limit: number, windowMs: number) {
+  const now = Date.now();
+  const cur = postHits.get(key);
+  if (!cur || now > cur.reset) {
+    postHits.set(key, { n: 1, reset: now + windowMs });
+    return false;
+  }
+  if (cur.n >= limit) return true;
+  cur.n += 1;
+  return false;
+}
+
 export async function GET(req: NextRequest) {
   const email = requireSessionEmail(req);
   if (!email) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
-  const pageId = req.nextUrl.searchParams.get("pageId") || undefined;
+  const pageIdRaw = req.nextUrl.searchParams.get("pageId");
+  if (!pageIdRaw) {
+    return NextResponse.json(
+      { error: "pageId is required" },
+      { status: 400 }
+    );
+  }
+  const pageId = resolveNotionPageId(pageIdRaw);
+  const branding = await loadBranding(pageId);
+  if (!branding?.ownerEmail || branding.ownerEmail.toLowerCase() !== email) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const limit = Number(req.nextUrl.searchParams.get("limit") || 40);
   return NextResponse.json({
-    events: listHeartbeats(pageId, limit),
+    events: listHeartbeats(pageId, Math.min(Math.max(limit, 1), 100)),
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Partial<HeartbeatEvent> & {
+    const ip = clientIp(req);
+    if (rateLimited(`hb:${ip}`, 60, 60_000)) {
+      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+    }
+
+    const rawText = await req.text();
+    if (rawText.length > 8_000) {
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
+    const body = JSON.parse(rawText || "{}") as Partial<HeartbeatEvent> & {
       syncNotion?: boolean;
       shareTicket?: string;
     };
@@ -54,13 +90,18 @@ export async function POST(req: NextRequest) {
 
     const event: HeartbeatEvent = {
       type: body.type as HeartbeatEventType,
-      pageId: body.pageId,
-      sessionId: body.sessionId,
-      sectionId: body.sectionId,
-      sectionTitle: body.sectionTitle,
-      progress: body.progress,
+      pageId: String(body.pageId).slice(0, 128),
+      sessionId: String(body.sessionId).slice(0, 128),
+      sectionId: body.sectionId ? String(body.sectionId).slice(0, 128) : undefined,
+      sectionTitle: body.sectionTitle
+        ? String(body.sectionTitle).slice(0, 200)
+        : undefined,
+      progress:
+        typeof body.progress === "number"
+          ? Math.max(0, Math.min(100, body.progress))
+          : undefined,
       ts: body.ts || Date.now(),
-      meta: body.meta,
+      meta: undefined, // drop arbitrary meta from anonymous writers
     };
 
     pushHeartbeat(event);

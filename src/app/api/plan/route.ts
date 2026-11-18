@@ -9,7 +9,11 @@ import {
 } from "@/lib/plan-store";
 import { bindDomain } from "@/lib/domain-store";
 import { fulfillPurchase } from "@/lib/fulfill";
-import { timingSafeEqualString } from "@/lib/security/crypto";
+import { createNotionClient, resolveNotionPageId } from "@/lib/notion";
+import {
+  looksLikeNotionToken,
+  timingSafeEqualString,
+} from "@/lib/security/crypto";
 import { requireSessionEmail } from "@/lib/security/studio-session";
 
 export const runtime = "nodejs";
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
       pageId?: string;
       hostname?: string;
       secret?: string;
+      notionToken?: string;
     };
 
     const action = body.action || "set-plan";
@@ -117,6 +122,22 @@ export async function POST(req: NextRequest) {
     if (action === "claim") {
       if (!body.pageId) {
         return NextResponse.json({ error: "pageId required" }, { status: 400 });
+      }
+      if (!looksLikeNotionToken(body.notionToken)) {
+        return NextResponse.json(
+          { error: "Notion Integration Token required to claim a page." },
+          { status: 401 }
+        );
+      }
+      try {
+        const pageId = resolveNotionPageId(body.pageId);
+        const client = createNotionClient(body.notionToken);
+        await client.pages.retrieve({ page_id: pageId });
+      } catch {
+        return NextResponse.json(
+          { error: "Notion token cannot access this page." },
+          { status: 403 }
+        );
       }
       const result = await claimPortal(email, body.pageId);
       if (!result.ok) {

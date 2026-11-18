@@ -5,7 +5,11 @@ import {
   loadRevision,
   loadRun,
 } from "@/lib/genui/stores/run-store";
-import { assertGenuiRunOwner, guardGenui } from "@/lib/security/genui-guard";
+import {
+  assertGenuiRunOwner,
+  guardGenui,
+  withGenuiGuardCookies,
+} from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,17 +68,20 @@ export async function POST(req: NextRequest) {
     }
 
     const detail = await attachCritiqueToRevision(rev.id, critique, "evaluated");
-    return NextResponse.json({
-      critique,
-      ...detail,
-      meta: {
-        source: critique.source,
-        note:
-          critique.source === "rules"
-            ? "Deterministic rule critique (no LLM scores fabricated)."
-            : "Merged rule + live LLM critique.",
-      },
-    });
+    return withGenuiGuardCookies(
+      guard,
+      NextResponse.json({
+        critique,
+        ...detail,
+        meta: {
+          source: critique.source,
+          note:
+            critique.source === "rules"
+              ? "Deterministic rule critique (no LLM scores fabricated)."
+              : "Merged rule + live LLM critique.",
+        },
+      })
+    );
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Critique failed" },

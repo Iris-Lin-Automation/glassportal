@@ -44,10 +44,10 @@ export async function registerAccount(input: {
   inviteCode?: string;
 }): Promise<{ ok: true; account: ConsultantAccountRecord } | { ok: false; error: string }> {
   const email = input.email.trim().toLowerCase();
-  if (!email.includes("@") || input.password.trim().length < 8) {
+  if (!email.includes("@") || input.password.trim().length < 6) {
     return {
       ok: false,
-      error: "Valid email and password (8+ chars) required.",
+      error: "Valid email and password (6+ chars) required.",
     };
   }
   const existing = await getAccount(email);

@@ -7,7 +7,11 @@ import {
   loadRevision,
   loadRun,
 } from "@/lib/genui/stores/run-store";
-import { assertGenuiRunOwner, guardGenui } from "@/lib/security/genui-guard";
+import {
+  assertGenuiRunOwner,
+  guardGenui,
+  withGenuiGuardCookies,
+} from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,19 +110,22 @@ export async function POST(req: NextRequest) {
       ))!;
     }
 
-    return NextResponse.json({
-      ...detail,
-      previousRevisionId: parent.id,
-      palettePatch: revised.palettePatch || null,
-      changelog: revised.changelog || [],
-      meta: {
-        mode: revised.mode,
-        note:
-          revised.mode === "local"
-            ? `Local revise: ${(revised.changelog || []).join("; ") || "re-scored"}`
-            : "Revised via server-side LLM.",
-      },
-    });
+    return withGenuiGuardCookies(
+      guard,
+      NextResponse.json({
+        ...detail,
+        previousRevisionId: parent.id,
+        palettePatch: revised.palettePatch || null,
+        changelog: revised.changelog || [],
+        meta: {
+          mode: revised.mode,
+          note:
+            revised.mode === "local"
+              ? `Local revise: ${(revised.changelog || []).join("; ") || "re-scored"}`
+              : "Revised via server-side LLM.",
+        },
+      })
+    );
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Revise failed" },

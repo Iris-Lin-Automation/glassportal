@@ -17,6 +17,16 @@ interface ResourceCardProps {
   kind?: "bookmark" | "embed" | "link_preview";
 }
 
+function safeHref(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function hostnameOf(url: string) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -60,9 +70,10 @@ export function ResourceCard({
   caption,
   kind = "bookmark",
 }: ResourceCardProps) {
-  if (!url) return null;
-  const label = labelFor(url, caption, title);
-  const host = hostnameOf(url);
+  const href = safeHref(url);
+  if (!href) return null;
+  const label = labelFor(href, caption, title);
+  const host = hostnameOf(href);
   const kindLabel =
     kind === "embed"
       ? "Embedded resource"
@@ -72,9 +83,9 @@ export function ResourceCard({
 
   return (
     <a
-      href={url}
+      href={href}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       className="group my-6 flex items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md"
     >
       <div className="flex w-1.5 shrink-0 bg-slate-900 transition group-hover:bg-slate-800" />

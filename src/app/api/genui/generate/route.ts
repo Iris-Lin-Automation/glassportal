@@ -3,7 +3,7 @@ import { GENUI_STYLES, type GenuiStyle } from "@/config/genui";
 import { generateUiSchema } from "@/lib/genui/generator";
 import { parseDesignIntent } from "@/lib/genui/intent-parser";
 import { createGeneration } from "@/lib/genui/stores/run-store";
-import { guardGenui } from "@/lib/security/genui-guard";
+import { guardGenui, withGenuiGuardCookies } from "@/lib/security/genui-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       fixture?: boolean;
     };
 
-    const prompt = (body.prompt || "").trim();
+    const prompt = (body.prompt || "").trim().slice(0, 4000);
     if (!prompt) {
       return NextResponse.json(
         { error: "prompt is required" },
@@ -40,8 +40,10 @@ export async function POST(req: NextRequest) {
 
     const ownerKey = guard.ownerKey;
 
+    // Fixture / anonymous sample path must never hit a paid LLM.
     const { intent, source: intentSource } = await parseDesignIntent(prompt, {
       style,
+      preferLlm: !useFixture,
     });
     intent.style = style;
 
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
       status: "generated",
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ...detail,
       intentSource,
       meta: {
@@ -80,6 +82,7 @@ export async function POST(req: NextRequest) {
             : "Generated via server-side LLM.",
       },
     });
+    return withGenuiGuardCookies(guard, res);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Generate failed" },

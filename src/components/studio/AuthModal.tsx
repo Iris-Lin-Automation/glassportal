@@ -188,7 +188,7 @@ export function ConsultantAuthForm({
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder="At least 6 characters"
             className="mech-input"
             autoComplete={mode === "register" ? "new-password" : "current-password"}
           />
@@ -196,7 +196,7 @@ export function ConsultantAuthForm({
         {mode === "register" ? (
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-slate-600">
-              Invite code (required when registration is locked)
+              Invite code (only if your admin locked signup)
             </span>
             <input
               type="text"
