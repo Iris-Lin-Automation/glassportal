@@ -48,9 +48,17 @@ function brandingLogoPath(pageId: string, updatedAt?: string) {
   return `/api/branding/${encodeURIComponent(pageId)}/logo?v=${v}`;
 }
 
+function brandingCoverPath(pageId: string, updatedAt?: string) {
+  const v = encodeURIComponent(updatedAt || String(Date.now()));
+  return `/api/branding/${encodeURIComponent(pageId)}/cover?v=${v}`;
+}
+
 function mergeLive(prev: PortalData, next: PortalData): PortalData {
   const keepBrandedIcon =
     prev.icon?.startsWith("/api/branding") || prev.icon?.startsWith("data:");
+  const keepBrandedCover =
+    prev.coverUrl?.startsWith("/api/branding") ||
+    prev.coverUrl?.startsWith("data:");
   const prevImages = prev.blocks
     .filter((b) => b.type === "image")
     .map((b) => `${b.id}:${b.url || ""}`)
@@ -69,6 +77,12 @@ function mergeLive(prev: PortalData, next: PortalData): PortalData {
       : isRenderableLogo(next.icon)
         ? next.icon
         : prev.icon || next.icon,
+    // Keep uploaded commercial poster across Notion live-sync refreshes
+    coverUrl: keepBrandedCover
+      ? prev.coverUrl
+      : next.coverUrl !== undefined
+        ? next.coverUrl
+        : prev.coverUrl,
     brandColor: prev.brandColor || next.brandColor,
     clientName: prev.clientName || next.clientName,
     badge: prev.badge || next.badge,
@@ -120,7 +134,7 @@ export function PortalShell({
         .join(",")}`;
       const contentChanged = contentKey !== parentContentKey.current;
 
-      // Theme / clientName / logo / brandColor only — keep live Notion blocks & images
+      // Theme / clientName / logo / cover / brandColor only — keep live Notion blocks & images
       if (prev.id === data.id && !contentChanged) {
         return {
           ...prev,
@@ -134,6 +148,8 @@ export function PortalShell({
           statusLabel: data.statusLabel ?? prev.statusLabel,
           brandColor: data.brandColor || prev.brandColor,
           icon: nextIcon,
+          // Allow hide/upload cover to clear or replace without waiting for Notion sync
+          coverUrl: data.coverUrl,
         };
       }
 
@@ -180,7 +196,9 @@ export function PortalShell({
         );
         if (!res.ok || cancelled) return;
         const branding = (await res.json()) as {
-          logoDataUrl?: string;
+          hasLogo?: boolean;
+          hasCover?: boolean;
+          hideCover?: boolean;
           brandColor?: string;
           clientName?: string;
           cardTitle?: string;
@@ -188,12 +206,24 @@ export function PortalShell({
           confidentialLabel?: string;
           updatedAt?: string;
         };
-        if (!branding.logoDataUrl && !branding.brandColor) return;
+        if (
+          !branding.hasLogo &&
+          !branding.hasCover &&
+          !branding.hideCover &&
+          !branding.brandColor
+        ) {
+          return;
+        }
         setLive((prev) => ({
           ...prev,
-          icon: branding.logoDataUrl
+          icon: branding.hasLogo
             ? brandingLogoPath(pageId, branding.updatedAt)
             : prev.icon,
+          coverUrl: branding.hideCover
+            ? undefined
+            : branding.hasCover
+              ? brandingCoverPath(pageId, branding.updatedAt)
+              : prev.coverUrl,
           // Prefer parent/theme-driven accent when already set
           brandColor: prev.brandColor || branding.brandColor || prev.brandColor,
           clientName: branding.clientName || prev.clientName,

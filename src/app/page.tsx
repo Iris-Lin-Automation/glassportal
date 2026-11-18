@@ -19,6 +19,7 @@ import {
 } from "@/components/studio/StudioMobileWizard";
 import type { PortalData, PortalTheme } from "@/lib/types";
 import {
+  compressCoverDataUrl,
   compressLogoDataUrl,
   extractBrandColor,
 } from "@/lib/brand-color";
@@ -86,11 +87,15 @@ export default function BuilderPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent>("private-link");
   const pendingAction = useRef<null | (() => void)>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const [planId, setPlanId] = useState<PlanId>("starter");
   const [mobileStep, setMobileStep] = useState<StudioMobileStep>(0);
 
   const [clientName, setClientName] = useState("Acme Corporation");
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
+  /** Uploaded commercial poster (data URL) or /api/branding/.../cover path */
+  const [coverDataUrl, setCoverDataUrl] = useState<string>("");
+  const [hideCover, setHideCover] = useState(false);
   const [brandColor, setBrandColor] = useState("#475569");
   const [passcodeEnabled, setPasscodeEnabled] = useState(true);
   const [passcode, setPasscode] = useState("Acme2026");
@@ -113,6 +118,7 @@ export default function BuilderPage() {
       const brand = JSON.parse(localStorage.getItem(BRAND_KEY) || "{}") as {
         clientName?: string;
         logoDataUrl?: string;
+        hideCover?: boolean;
         brandColor?: string;
         passcodeEnabled?: boolean;
         passcode?: string;
@@ -122,6 +128,7 @@ export default function BuilderPage() {
       };
       if (brand.clientName) setClientName(brand.clientName);
       if (brand.logoDataUrl) setLogoDataUrl(brand.logoDataUrl);
+      if (typeof brand.hideCover === "boolean") setHideCover(brand.hideCover);
       // Theme preset color applies unless a custom logo-sampled color was saved
       if (brand.brandColor) setBrandColor(brand.brandColor);
       else setBrandColor(themeBrandColor(savedTheme));
@@ -146,6 +153,7 @@ export default function BuilderPage() {
       JSON.stringify({
         clientName,
         logoDataUrl,
+        hideCover,
         brandColor,
         passcodeEnabled,
         passcode,
@@ -157,6 +165,7 @@ export default function BuilderPage() {
   }, [
     clientName,
     logoDataUrl,
+    hideCover,
     brandColor,
     passcodeEnabled,
     passcode,
@@ -174,12 +183,18 @@ export default function BuilderPage() {
       (data.title || "").trim() ||
       shareConfig.cardTitle.trim() ||
       `${clientName} 2026 Strategic Advisory Report`;
+    const resolvedCover = hideCover
+      ? undefined
+      : coverDataUrl ||
+        data.coverUrl ||
+        (isSamplePortal(data) ? SAMPLE_COVER_URL : undefined);
     return {
       ...data,
       title,
       description: shareConfig.cardSubtitle || data.description,
       clientName: clientName.trim() || data.clientName,
       icon: logoDataUrl || data.icon,
+      coverUrl: resolvedCover,
       brandColor,
       preparedFor: data.preparedFor?.trim() || undefined,
       password: passcodeEnabled && passcode.trim() ? passcode.trim() : data.password,
@@ -196,6 +211,8 @@ export default function BuilderPage() {
     data,
     clientName,
     logoDataUrl,
+    coverDataUrl,
+    hideCover,
     brandColor,
     passcodeEnabled,
     passcode,
@@ -228,7 +245,14 @@ export default function BuilderPage() {
 
   const persistBranding = async (
     pageId: string,
-    overrides?: { logoDataUrl?: string; brandColor?: string; theme?: PortalTheme },
+    overrides?: {
+      logoDataUrl?: string;
+      coverDataUrl?: string;
+      clearCover?: boolean;
+      hideCover?: boolean;
+      brandColor?: string;
+      theme?: PortalTheme;
+    },
     opts?: { publish?: boolean }
   ): Promise<{ ok: boolean; error?: string; shareTicket?: string }> => {
     try {
@@ -237,6 +261,15 @@ export default function BuilderPage() {
         return { ok: false, error: "Sign in required to save branding." };
       }
       const cleanToken = token.trim();
+      const coverPayload =
+        overrides?.clearCover === true
+          ? { clearCover: true as const }
+          : {
+              coverDataUrl:
+                (overrides?.coverDataUrl ??
+                  (coverDataUrl.startsWith("data:") ? coverDataUrl : "")) ||
+                undefined,
+            };
       const res = await fetch(`/api/branding/${encodeURIComponent(pageId)}`, {
         method: "POST",
         credentials: "include",
@@ -246,6 +279,8 @@ export default function BuilderPage() {
         body: JSON.stringify({
           clientName: clientName.trim(),
           logoDataUrl: (overrides?.logoDataUrl ?? logoDataUrl) || undefined,
+          ...coverPayload,
+          hideCover: overrides?.hideCover ?? hideCover,
           brandColor: overrides?.brandColor ?? brandColor,
           theme: overrides?.theme ?? theme,
           cardTitle: shareConfig.cardTitle.trim() || undefined,
@@ -299,6 +334,70 @@ export default function BuilderPage() {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const onCoverUpload = (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file for the cover poster.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const raw = String(reader.result || "");
+      const compressed = await compressCoverDataUrl(raw);
+      setCoverDataUrl(compressed);
+      setHideCover(false);
+      if (data?.id) {
+        void persistBranding(data.id, {
+          coverDataUrl: compressed,
+          hideCover: false,
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onClearCover = () => {
+    setCoverDataUrl("");
+    if (data?.id) {
+      void persistBranding(data.id, { clearCover: true });
+    }
+  };
+
+  const onToggleHideCover = (next: boolean) => {
+    setHideCover(next);
+    if (data?.id) {
+      void persistBranding(data.id, { hideCover: next });
+    }
+  };
+
+  /** After Notion connect, hydrate uploaded cover path from branding API. */
+  const hydrateCoverFromBranding = async (pageId: string) => {
+    try {
+      const res = await fetch(
+        `/api/branding/${encodeURIComponent(pageId)}?_=${Date.now()}`,
+        { cache: "no-store", credentials: "include" }
+      );
+      if (!res.ok) return;
+      const brand = (await res.json()) as {
+        hasCover?: boolean;
+        hideCover?: boolean;
+        updatedAt?: string;
+      };
+      if (typeof brand.hideCover === "boolean") setHideCover(brand.hideCover);
+      if (brand.hasCover && !brand.hideCover) {
+        setCoverDataUrl(
+          `/api/branding/${encodeURIComponent(pageId)}/cover?v=${encodeURIComponent(
+            brand.updatedAt || String(Date.now())
+          )}`
+        );
+      } else if (!brand.hasCover && !coverDataUrl.startsWith("data:")) {
+        setCoverDataUrl("");
+      }
+    } catch {
+      /* keep local cover state */
+    }
   };
 
   const buildPaths = (pageId: string, ticket: string) => {
@@ -394,6 +493,7 @@ export default function BuilderPage() {
 
       const portal = json as PortalData;
       setData(portal);
+      await hydrateCoverFromBranding(portal.id);
       const saved = getConsultantSession()
         ? await persistBranding(portal.id)
         : { ok: false as const };
@@ -721,6 +821,86 @@ export default function BuilderPage() {
     />
   );
 
+  const coverFileInput = (
+    <input
+      ref={coverInputRef}
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/gif"
+      tabIndex={-1}
+      aria-hidden="true"
+      className="pointer-events-none absolute h-0 w-0 opacity-0"
+      style={{
+        position: "absolute",
+        width: 1,
+        height: 1,
+        padding: 0,
+        margin: -1,
+        overflow: "hidden",
+        clip: "rect(0, 0, 0, 0)",
+        whiteSpace: "nowrap",
+        border: 0,
+      }}
+      onChange={(e) => {
+        onCoverUpload(e.target.files?.[0]);
+        e.target.value = "";
+      }}
+    />
+  );
+
+  const coverPosterControls = (
+    <div className="space-y-1.5">
+      <span className="text-xs font-medium text-slate-600">
+        Cover / commercial poster
+      </span>
+      <button
+        type="button"
+        onClick={() => coverInputRef.current?.click()}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+      >
+        <Upload className="h-4 w-4 shrink-0" aria-hidden />
+        Upload poster
+      </button>
+      <p className="text-[10px] leading-relaxed text-slate-400">
+        Optional hero image for client-ready portals. Overrides the Notion page
+        cover (including dark empty covers).
+      </p>
+      {!hideCover && (coverDataUrl || data?.coverUrl) ? (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={coverDataUrl || data?.coverUrl || SAMPLE_COVER_URL}
+            alt="Cover poster preview"
+            className="aspect-[2.4/1] w-full object-cover"
+          />
+        </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-[11px] text-slate-400">
+          {hideCover
+            ? "Cover hidden — title starts at the top."
+            : "No poster yet — Notion cover (if any) will show."}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => onToggleHideCover(!hideCover)}
+          className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          {hideCover ? "Show cover" : "Hide cover"}
+        </button>
+        {coverDataUrl ? (
+          <button
+            type="button"
+            onClick={onClearCover}
+            className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Remove uploaded poster
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+
   const mobileConnectStep = (
     <GlassCard hover={false} className="space-y-4 p-5">
       <div className="flex items-center justify-between gap-2">
@@ -873,6 +1053,7 @@ export default function BuilderPage() {
             </div>
           ) : null}
         </div>
+        {coverPosterControls}
       </GlassCard>
       <GlassCard hover={false} className="space-y-3 p-5">
         <h2 className="text-sm font-semibold text-slate-900">Executive Theme</h2>
@@ -1028,9 +1209,10 @@ export default function BuilderPage() {
           clientName={clientName}
           logoDataUrl={logoDataUrl}
           coverUrl={
-            logoDataUrl
+            hideCover
               ? undefined
-              : data?.coverUrl ||
+              : coverDataUrl ||
+                data?.coverUrl ||
                 (usingSample ? SAMPLE_COVER_URL : undefined)
           }
           sharePath={privatePath || portalPath}
@@ -1093,6 +1275,7 @@ export default function BuilderPage() {
       {/* Studio tab icon = uploaded client logo whenever available */}
       <BrandFavicon href={logoDataUrl || undefined} />
       {logoFileInput}
+      {coverFileInput}
 
       {/* —— Mobile: step wizard (Connect → Brand → Share → Preview) —— */}
       <StudioMobileWizard
@@ -1331,6 +1514,7 @@ export default function BuilderPage() {
                   </div>
                 ) : null}
               </div>
+              {coverPosterControls}
             </GlassCard>
 
             {/* 3 — Access Security */}
@@ -1438,9 +1622,10 @@ export default function BuilderPage() {
                 clientName={clientName}
                 logoDataUrl={logoDataUrl}
                 coverUrl={
-                  logoDataUrl
+                  hideCover
                     ? undefined
-                    : data?.coverUrl ||
+                    : coverDataUrl ||
+                      data?.coverUrl ||
                       (usingSample ? SAMPLE_COVER_URL : undefined)
                 }
                 sharePath={privatePath || portalPath}

@@ -14,6 +14,8 @@ export function toPublicBranding(branding: PortalBranding) {
     passcodeEnabled: Boolean(branding.passcodeEnabled),
     hasPasscode: Boolean(branding.passcodeHash || branding.passcode),
     hasLogo: Boolean(branding.logoDataUrl),
+    hasCover: Boolean(branding.coverDataUrl),
+    hideCover: Boolean(branding.hideCover),
     showWatermark: branding.showWatermark,
     whiteLabel: branding.whiteLabel,
     updatedAt: branding.updatedAt,

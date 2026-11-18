@@ -4,6 +4,10 @@ export interface PortalBranding {
   pageId: string;
   clientName?: string;
   logoDataUrl?: string;
+  /** Optional commercial poster / hero cover (overrides Notion page cover). */
+  coverDataUrl?: string;
+  /** When true, never show Notion or uploaded cover in the portal header. */
+  hideCover?: boolean;
   brandColor?: string;
   theme?: string;
   cardTitle?: string;
@@ -21,6 +25,7 @@ export interface PortalBranding {
 }
 
 const LOGO_MAX_KV = 700_000;
+const COVER_MAX_KV = 900_000;
 
 function brandKey(pageId: string) {
   return `branding:${pageId}`;
@@ -38,6 +43,9 @@ export async function saveBranding(
   const forKv: PortalBranding = { ...record };
   if ((forKv.logoDataUrl?.length || 0) > LOGO_MAX_KV) {
     delete forKv.logoDataUrl;
+  }
+  if ((forKv.coverDataUrl?.length || 0) > COVER_MAX_KV) {
+    delete forKv.coverDataUrl;
   }
   await writeJson(brandKey(pageId), forKv);
   return record;

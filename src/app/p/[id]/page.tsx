@@ -60,6 +60,12 @@ async function applyBranding(
         branding.updatedAt
       )}`
     : undefined;
+  const coverPath =
+    !branding?.hideCover && branding?.coverDataUrl
+      ? `/api/branding/${encodeURIComponent(pageId)}/cover?v=${encodeURIComponent(
+          branding.updatedAt
+        )}`
+      : undefined;
 
   return {
     ...data,
@@ -77,6 +83,9 @@ async function applyBranding(
       branding?.confidentialLabel ||
       data.badge,
     icon: logoPath || data.icon,
+    coverUrl: branding?.hideCover
+      ? undefined
+      : coverPath || data.coverUrl,
     brandColor: branding?.brandColor || data.brandColor || "#0F172A",
   };
 }

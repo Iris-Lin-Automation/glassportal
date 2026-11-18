@@ -64,6 +64,9 @@ export async function POST(
     const body = (await req.json()) as {
       clientName?: string;
       logoDataUrl?: string;
+      coverDataUrl?: string;
+      clearCover?: boolean;
+      hideCover?: boolean;
       brandColor?: string;
       theme?: string;
       cardTitle?: string;
@@ -87,6 +90,22 @@ export async function POST(
       const logoErr = assertSafeLogoDataUrl(body.logoDataUrl);
       if (logoErr) {
         return NextResponse.json({ error: logoErr }, { status: 400 });
+      }
+    }
+
+    if (body.coverDataUrl) {
+      if (body.coverDataUrl.length > 3_500_000) {
+        return NextResponse.json(
+          { error: "Cover too large. Please use a smaller poster image." },
+          { status: 413 }
+        );
+      }
+      const coverErr = assertSafeLogoDataUrl(body.coverDataUrl);
+      if (coverErr) {
+        return NextResponse.json(
+          { error: coverErr.replace(/^Logo/, "Cover") },
+          { status: 400 }
+        );
       }
     }
 
@@ -185,9 +204,23 @@ export async function POST(
       }
     }
 
+    let nextCover = existing?.coverDataUrl;
+    let nextHideCover = existing?.hideCover;
+    if (body.clearCover) {
+      nextCover = undefined;
+    } else if (typeof body.coverDataUrl === "string" && body.coverDataUrl) {
+      nextCover = body.coverDataUrl;
+      nextHideCover = false;
+    }
+    if (typeof body.hideCover === "boolean") {
+      nextHideCover = body.hideCover;
+    }
+
     const saved = await saveBranding(pageId, {
       clientName: body.clientName ?? existing?.clientName,
       logoDataUrl: body.logoDataUrl ?? existing?.logoDataUrl,
+      coverDataUrl: nextCover,
+      hideCover: nextHideCover,
       brandColor: body.brandColor ?? existing?.brandColor,
       theme: body.theme ?? existing?.theme,
       cardTitle: body.cardTitle ?? existing?.cardTitle,
