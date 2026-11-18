@@ -24,7 +24,9 @@ function cloneNode(node: UiNode): UiNode {
 
 function extractTargetNodeIds(notes: string) {
   const ids = new Set<string>();
-  for (const m of notes.matchAll(/id=([a-zA-Z0-9_-]+)/g)) {
+  const re = /id=([a-zA-Z0-9_-]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(notes)) !== null) {
     ids.add(m[1]);
   }
   return ids;
@@ -161,7 +163,8 @@ export function reviseSchemaLocally(
     changelog.push("Added missing H1 heading");
   }
 
-  const blob = () => JSON.stringify({ root: { children: kids }, ...next });
+  const blob = () =>
+    JSON.stringify({ ...next, root: { ...next.root, children: kids } });
   const needsTable = critique.issues.some((i) =>
     /table|transaction/i.test(`${i.message} ${i.suggestion}`)
   );
